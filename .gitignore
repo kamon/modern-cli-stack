@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+
+# Build output
+system/output/
+*.pdf
+*.aux
+*.log
+*.toc
+*.out
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local config (author identity etc.)
+.author.local.yaml
+
+# Generated teaser PNGs
+system/output/preview-*.png

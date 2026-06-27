@@ -1,0 +1,60 @@
+# =============================================================================
+# AUTHOR & BRAND CONFIG — used by ALL products
+# =============================================================================
+# This file holds information about YOU (the author/creator).
+# It is shared across every product you build (PDFs, books, newsletters).
+# Edit once → reflects everywhere.
+
+author:
+  name: "Your Name"
+  handle: "yourhandle"
+  email: "you@example.com"
+
+# Social & web presence
+social:
+  twitter: "https://twitter.com/yourhandle"
+  github: "https://github.com/yourhandle"
+  linkedin: "https://www.linkedin.com/in/yourhandle"
+  mastodon: "https://mastodon.social/@yourhandle"
+  youtube: ""        # leave empty if not used
+  website: "https://yoursite.com"
+
+# Default links — products can override or use as-is
+links:
+  newsletter: "https://yoursite.com/newsletter"
+  community: "https://www.skool.com/your-community"
+  tip_jar: "https://buymeacoffee.com/yourhandle"
+  store: "https://yourname.gumroad.com"
+
+# Brand identity — used in PDF covers, footers, email signatures
+brand:
+  name: "Your Brand"
+  tagline: "Tagline shown on every product"
+  logo_path: ""      # path relative to themes/, e.g. "brand/logo.svg"
+  primary_color: "2E7D32"    # hex without # — green
+  accent_color: "FF6F00"     # hex without # — orange
+  text_color: "1A1A1A"
+
+# Default metadata injected into every PDF unless overridden
+defaults:
+  copyright_year: 2026
+  copyright_holder: "Your Name"
+  license: "CC BY-NC-SA 4.0"
+  language: "en"
+  publisher: "Self-published"
+
+# Footer text shown on every page of PDFs
+pdf_footer:
+  left: "Your Brand"
+  center: ""
+  right: "Page \\thepage"
+
+# Header text shown on every page of PDFs (after cover)
+pdf_header:
+  left: ""
+  center: ""
+  right: ""
+
+# Citation / attribution format for academic citations
+citation:
+  style: "chicago-author-date"  # pandoc-citeproc style

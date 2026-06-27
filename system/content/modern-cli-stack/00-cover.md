@@ -1,0 +1,30 @@
+---
+title: "{{ product.title }}"
+subtitle: "{{ product.subtitle }}"
+author: "{{ author.name }}"
+date: "{{ now().strftime('%Y-%m-%d') }}"
+version: "{{ product.version }}"
+titlepage: true
+titlepage-color: "FFFFFF"
+titlepage-text-color: "1A1A1A"
+titlepage-rule-color: "ForestGreen"
+titlepage-rule-height: 2
+---
+
+# {{ product.title }}
+
+## {{ product.subtitle }}
+
+**{{ product.tagline }}**
+
+---
+
+**By {{ author.name }}** · [@{{ author.handle }}]({{ social.twitter }})
+
+**Edition:** v{{ product.version }} · {{ product.audience.platforms | join(' · ') }}
+
+**License:** {{ author.defaults.license }}
+
+[{{ links.newsletter }}]({{ links.newsletter }}) · [{{ links.community }}]({{ links.community }})
+
+\newpage

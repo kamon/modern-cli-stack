@@ -1,0 +1,61 @@
+# =============================================================================
+# PRODUCT METADATA — Modern CLI Stack PDF
+# =============================================================================
+# One file per product. Reuse the system for any book, PDF, or newsletter.
+# All variables here are available as {{ product.title }} in content templates.
+
+product:
+  id: "modern-cli-stack"
+  slug: "modern-cli-stack"          # used in filenames, URLs
+  type: "pdf"                        # pdf | book | newsletter | course
+  version: "2026.1"
+  status: "draft"                    # draft | review | published
+  title: "The Modern CLI Stack"
+  subtitle: "13 Tools That Replaced My 200-Line .bashrc"
+  tagline: "A Beginner's Field Guide to a Faster Terminal"
+  description: |
+    The 13 modern, actively-maintained tools that drop into Bash and
+    immediately make navigation, search, history, and git feel faster.
+    One script installs all. No assumed knowledge. Reversible.
+
+# Audience — used to tag the PDF, populate marketing copy, and shape tone
+audience:
+  primary: "Junior developers and career switchers"
+  level: "beginner"                  # beginner | intermediate | advanced
+  platforms: ["macOS", "Linux", "WSL"]
+  shells: ["bash"]
+
+# Pricing & distribution
+distribution:
+  price_usd: 0                        # free
+  pay_what_you_want: true
+  channels:
+    - gumroad
+    - "your-website"
+  download_url: ""                    # filled after first publish
+
+# Visual theme — references themes/<name>/
+theme:
+  name: "eisvogel"                   # prebuilt Pandoc template
+  color: "2E7D32"                    # primary cover color override
+  font:
+    body: "Inter"
+    heading: "Inter"
+    code: "JetBrains Mono"
+
+# File metadata for the PDF document properties
+pdf:
+  author: "{{ author.name }}"        # template var — resolved at build time
+  title: "{{ product.title }}"
+  subject: "{{ product.tagline }}"
+  keywords: "cli, terminal, bash, devops, productivity, command-line"
+  date: "{{ now().strftime('%Y-%m-%d') }}"
+  lang: "{{ author.defaults.language }}"
+
+# Custom variables available in content templates (extends global)
+vars:
+  # Use a short placeholder URL for the install script. In production you'd
+  # point this at a real short URL (e.g. https://cli.yourdomain.com/install.sh).
+  install_script_url: "https://cli.example.com/install.sh"
+  repo_url: "https://github.com/kamon/modern-cli-stack"
+  estimated_read_minutes: 20

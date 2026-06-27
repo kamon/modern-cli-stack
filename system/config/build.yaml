@@ -1,0 +1,82 @@
+# =============================================================================
+# BUILD CONFIG — pipeline settings
+# =============================================================================
+# How products are compiled. Override via CLI flags or env vars.
+
+build:
+  # Output directory (relative to system/)
+  output_dir: "output"
+
+  # Build artifacts to produce (any subset)
+  formats:
+    - "pdf"                          # primary deliverable
+    # - "html"                       # uncomment to also produce HTML
+    # - "epub"                       # uncomment for ebook
+    # - "markdown"                   # raw MD with metadata stripped
+
+  # Pandoc-specific settings
+  pandoc:
+    pdf_engine: "xelatex"            # xelatex | pdflatex | lualatex
+    toc: true                        # include table of contents
+    toc_depth: 2                     # h1 + h2
+    number_sections: false           # don't number sections
+    highlight_style: "themes/pygments-grey.theme"  # custom: light-grey background
+    syntax_definition: "themes/syntax/"  # custom syntax files (optional)
+    standalone: true
+    self_contained: true
+    # Raw LaTeX header-includes — applied to every build.
+    # File path (relative to themes/); contents are injected via Pandoc's -H flag.
+    # See themes/header-includes.tex for the actual LaTeX code.
+    header_includes: "themes/header-includes.tex"
+    variables:
+      geometry: "margin=2.5cm"
+      mainfont: "Georgia"              # warm, readable serif (book-like)
+      monofont: "Menlo"                # macOS built-in monospace
+      colorlinks: true
+      linkcolor: "ForestGreen"            # LaTeX xcolor named color
+      urlcolor: "ForestGreen"
+      toccolor: "ForestGreen"
+      fontsize: "11pt"
+      # Table styling — alternating row colors
+      table-use-row-colors: true         # zebra-stripe rows (Eisvogel default)
+
+      # Title page — Eisvogel styled cover with one accent color
+      # Set titlepage: false for plain text cover, true for designed cover
+      titlepage: true
+      titlepage-color: "FFFFFF"         # background (white = cleanest)
+      titlepage-text-color: "1A1A1A"    # near-black for high contrast
+      titlepage-rule-color: "ForestGreen"  # accent rule (matches link color)
+      titlepage-rule-height: 2           # 1-4, thicker = bolder
+
+  # Watch mode — rebuild on file change
+  watch:
+    enabled: false
+    paths:
+      - "content/"
+      - "config/"
+    ignore:
+      - "output/"
+      - ".git/"
+
+  # Pre-build hooks (run before Pandoc)
+  hooks:
+    pre_hooks:
+      - "hooks/validate_config.py"
+      - "hooks/check_assets.py"
+      - "hooks/check_ai_tells.py"
+    post_build:
+      - "hooks/print_summary.py"
+
+  # Validation rules
+  validation:
+    require_cover: true
+    require_intro: true
+    require_glossary: false
+    max_word_count: 5000
+    min_word_count: 500
+
+  # CI / automation
+  ci:
+    fail_on_warning: false
+    artifact_name: "{{ product.slug }}-v{{ product.version }}.pdf"
+    upload_to: ""                    # s3, gumroad api, etc. (future)

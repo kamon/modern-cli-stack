@@ -1,0 +1,36 @@
+% header-includes.tex — Raw LaTeX injected into every PDF build.
+%
+% This file augments code-block padding for readability.
+% No special-character workarounds — content uses ASCII (-> instead of ⇒)
+% so all characters are guaranteed to render in every PDF viewer.
+
+\usepackage{xcolor}
+% Load fvextra explicitly — provides the `breaklines` option for code blocks.
+% Eisvogel normally loads this conditionally (only when it sees code blocks),
+% but the conditional doesn't fire reliably with stdin input, so we load it
+% unconditionally here.
+\usepackage{fvextra}
+
+% ============================================================================
+% CODE BLOCK STYLING — extra padding for readability
+% ============================================================================
+% The Highlighting environment is defined by Eisvogel using fvextra's
+% Verbatim. We add extra left padding (so commands have breathing room)
+% and extra bottom padding (so the code doesn't crowd surrounding text).
+%
+% breaklines=true wraps long lines at the margin with a small indent on
+% continuation lines so wrapped URLs and commands remain readable.
+
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{%
+  breaklines,%
+  fontsize=\small,%
+  commandchars=\\\{\},%
+  xleftmargin=1.5em,%
+  framesep=0.7em,%
+  baselinestretch=1.05,%
+  rulecolor=\color{table-rule-color}%
+}
+
+% Extra vertical space BEFORE and AFTER each code block.
+\AtBeginEnvironment{Highlighting}{\par\vspace{0.4em}}
+\AtEndEnvironment{Highlighting}{\par\vspace{0.8em}}
