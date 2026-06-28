@@ -102,14 +102,6 @@ modern-cli-stack/
 - **A tag-and-release helper** — `./scripts/release.sh` bumps the
   patch version, rebuilds, and tags.
 
-## Companion project
-
-The companion to this template is
-[`kamon/shellcraft-newsletter`](https://github.com/kamon/kamon/shellcraft-newsletter),
-a newsletter operations system. If you publish a weekly newsletter
-alongside your book/PDF, the two systems share the same
-`CONVENTIONS.md` patterns.
-
 ## License
 
 MIT. See [LICENSE](LICENSE).
