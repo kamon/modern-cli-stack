@@ -16,4 +16,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Debian/Ubuntu, and Arch Linux
 - CI workflow that builds the PDF on every push to `main`
   (`.github/workflows/build-pdf.yml`)
-- Companion cross-reference to `kamon/shellcraft-newsletter`
