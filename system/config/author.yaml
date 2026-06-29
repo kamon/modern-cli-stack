@@ -6,29 +6,29 @@
 # Edit once → reflects everywhere.
 
 author:
-  name: "Your Name"
-  handle: "yourhandle"
+  name: "Kamon Ayeva"
+  handle: "kamon"
   email: "you@example.com"
 
 # Social & web presence
 social:
-  twitter: "https://twitter.com/yourhandle"
-  github: "https://github.com/yourhandle"
-  linkedin: "https://www.linkedin.com/in/yourhandle"
-  mastodon: "https://mastodon.social/@yourhandle"
+  twitter: "https://x.com/kamon"
+  github: "https://github.com/kamon"
+  linkedin: ""
+  mastodon: ""
   youtube: ""        # leave empty if not used
-  website: "https://yoursite.com"
+  website: ""
 
 # Default links — products can override or use as-is
 links:
-  newsletter: "https://yoursite.com/newsletter"
-  community: "https://www.skool.com/your-community"
-  tip_jar: "https://buymeacoffee.com/yourhandle"
-  store: "https://yourname.gumroad.com"
+  newsletter: "https://shellcraft.beehiiv.com"
+  community: ""
+  tip_jar: ""
+  store: "https://kamonayeva.gumroad.com/"
 
 # Brand identity — used in PDF covers, footers, email signatures
 brand:
-  name: "Your Brand"
+  name: "Team Enable"
   tagline: "Tagline shown on every product"
   logo_path: ""      # path relative to themes/, e.g. "brand/logo.svg"
   primary_color: "2E7D32"    # hex without # — green
@@ -38,14 +38,14 @@ brand:
 # Default metadata injected into every PDF unless overridden
 defaults:
   copyright_year: 2026
-  copyright_holder: "Your Name"
+  copyright_holder: "Kamon Ayeva"
   license: "CC BY-NC-SA 4.0"
   language: "en"
   publisher: "Self-published"
 
 # Footer text shown on every page of PDFs
 pdf_footer:
-  left: "Your Brand"
+  left: "Shellcraft"
   center: ""
   right: "Page \\thepage"
 

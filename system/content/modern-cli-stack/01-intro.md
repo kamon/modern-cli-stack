@@ -26,3 +26,10 @@ Tools) are the core. Read them in order. The remaining sections
 (roadmap, appendices) are reference — come back when you need them.
 
 Uninstall instructions are in Appendix D. Nothing here is irreversible.
+
+## What next
+
+If you want to go further, the companion newsletter
+[Shellcraft]({{ links.newsletter }}) covers a different tool or
+workflow every Tuesday. This PDF is one of several guides
+published under **Team Enable** — same author, broader scope.
