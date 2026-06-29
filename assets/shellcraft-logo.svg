@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 296 48" fill="none" role="img" aria-label="Shellcraft">
+  <!-- Logo for Shellcraft newsletter. Prompt-prefix wordmark: "$ shellcraft"
+       rendered as if typed at a terminal prompt. JetBrains Mono (the same
+       monospace used in the Modern CLI Stack PDF). Pure black on transparent
+       background; works on white pages and most dark UIs (reverse via CSS
+       if needed). Renders crisp at 36px tall and scales to any size. -->
+
+  <!-- $ prompt glyph -->
+  <text x="0" y="36"
+        font-family="'JetBrains Mono', 'Menlo', 'Monaco', ui-monospace, monospace"
+        font-size="32"
+        font-weight="500"
+        fill="#1A1A1A">$</text>
+
+  <!-- Shellcraft wordmark -->
+  <text x="22" y="36"
+        font-family="'JetBrains Mono', 'Menlo', 'Monaco', ui-monospace, monospace"
+        font-size="32"
+        font-weight="700"
+        fill="#1A1A1A"
+        letter-spacing="-0.5">shellcraft</text>
+
+  <!-- Cursor block (subtle, indicates "live" terminal feel) -->
+  <rect x="240" y="14" width="14" height="28" fill="#1A1A1A"/>
+</svg>
