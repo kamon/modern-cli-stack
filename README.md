@@ -7,6 +7,16 @@ This repo is a **template** — fork it, swap in your own content, and
 build your own PDF. The 13 chapters in `system/content/modern-cli-stack/`
 are the example. Replace them with yours.
 
+## The Modern CLI Stack PDF
+
+The rendered example PDF (what this build system produces) is
+distributed through Gumroad:
+
+**[Download the Modern CLI Stack PDF (free)](https://kamonayeva.gumroad.com/l/modern-cli-stack)**
+
+The v2026.1 release of this repo also has the PDF attached if you
+want to grab it directly from GitHub.
+
 ## What's in this repo
 
 - **A Pandoc + xelatex + Eisvogel build pipeline** that turns
