@@ -77,4 +77,5 @@ restores your setup.
 - Repo: {{ vars.repo_url }}
 - Newsletter: {{ links.newsletter }}
 - Twitter: {{ links.twitter }}
+- Buy me a coffee: {{ links.coffee }}
 - Store: {{ links.store }}

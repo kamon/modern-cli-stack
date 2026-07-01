@@ -25,6 +25,6 @@ titlepage-rule-height: 2
 
 **License:** {{ author.defaults.license }}
 
-[Companion newsletter]({{ links.newsletter }}) · [Follow on X]({{ links.twitter }})
+[Companion newsletter]({{ links.newsletter }}) · [Follow on X]({{ links.twitter }}) · [Buy me a coffee]({{ links.coffee }})
 
 \newpage
