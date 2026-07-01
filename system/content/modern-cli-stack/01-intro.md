@@ -31,5 +31,4 @@ Uninstall instructions are in Appendix D. Nothing here is irreversible.
 
 If you want to go further, the companion newsletter
 [Shellcraft]({{ links.newsletter }}) covers a different tool or
-workflow every Tuesday. This PDF is one of several guides
-published under **Team Enable** — same author, broader scope.
+workflow every Tuesday.

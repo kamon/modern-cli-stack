@@ -26,9 +26,13 @@ links:
   coffee: "https://buymeacoffee.com/kamonayevak"
   store: "https://kamonayeva.gumroad.com/"
 
-# Brand identity — used in PDF covers, footers, email signatures
+# Brand identity — used in PDF covers, footers, email signatures.
+# The brand name is currently empty -- a future "Team Enable" or
+# other umbrella is planned but not used yet. To re-enable, set
+# the name field and reference {{ brand.name }} in product front
+# matter.
 brand:
-  name: "Team Enable"
+  name: ""
   tagline: "Tagline shown on every product"
   logo_path: ""      # path relative to themes/, e.g. "brand/logo.svg"
   primary_color: "2E7D32"    # hex without # — green
