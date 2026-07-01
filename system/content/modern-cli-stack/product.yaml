@@ -54,8 +54,13 @@ pdf:
 
 # Custom variables available in content templates (extends global)
 vars:
-  # Use a short placeholder URL for the install script. In production you'd
-  # point this at a real short URL (e.g. https://cli.yourdomain.com/install.sh).
-  install_script_url: "https://cli.example.com/install.sh"
+  # Install script URL -- this is the URL the PDF tells readers to
+  # curl. Currently points at the raw install-cli-stack.sh on the
+  # main branch (always serves the latest version of the script).
+  # 
+  # When you set up a short URL (e.g. https://cli.kamonayeva.com/
+  # install.sh) pointing at the raw GitHub URL, update this field
+  # and the comment below. See .hermes/ for the short-URL plan.
+  install_script_url: "https://raw.githubusercontent.com/kamon/modern-cli-stack/refs/heads/main/system/install-cli-stack.sh"
   repo_url: "https://github.com/kamon/modern-cli-stack"
   estimated_read_minutes: 20
