@@ -22,8 +22,7 @@ social:
 # Default links — products can override or use as-is
 links:
   newsletter: "https://shellcraft.beehiiv.com"
-  community: ""
-  tip_jar: ""
+  twitter: "https://x.com/kamon"
   store: "https://kamonayeva.gumroad.com/"
 
 # Brand identity — used in PDF covers, footers, email signatures
