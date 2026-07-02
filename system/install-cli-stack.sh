@@ -48,6 +48,28 @@ detect_os() {
 
 # --- Brew install (macOS) ---------------------------------------------------
 ensure_brew() {
+  # On Apple Silicon, there are two Homebrew install paths:
+  #   /opt/homebrew/bin/brew  -- native ARM64 brew (preferred)
+  #   /usr/local/bin/brew     -- x86_64 brew (Intel or Rosetta)
+  # The native one is faster and has more reliable ARM64 builds.
+  # If it exists, prepend it to PATH so `brew` finds the right one
+  # first, regardless of what the user's current PATH says.
+  if [ -x /opt/homebrew/bin/brew ]; then
+    export PATH="/opt/homebrew/bin:$PATH"
+    info "Using native ARM64 Homebrew at /opt/homebrew/bin/brew"
+    return 0
+  fi
+
+  # If we're on Apple Silicon (ARM64-capable CPU) but only the x86
+  # brew is available, we're running under Rosetta 2. The x86 brew
+  # works but installs slower x86 binaries; some tools may also be
+  # missing x86 builds. Warn the user so they can decide.
+  if [ "$(uname -m)" = "x86_64" ] && sysctl -n hw.optional.arm64 2>/dev/null | grep -q 1; then
+    warn "Detected x86_64 Homebrew under Rosetta 2 on Apple Silicon."
+    warn "Tools will install as x86 binaries. For native ARM64 speed,"
+    warn "install Homebrew natively: https://brew.sh"
+  fi
+
   if ! command -v brew >/dev/null 2>&1; then
     warn "Homebrew not found. Installing..."
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
