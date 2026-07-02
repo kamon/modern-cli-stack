@@ -377,7 +377,7 @@ eval "$(atuin init bash)"
     # generate the additions in memory (already done above) but
     # skip writing to .bashrc. The block will be printed in the
     # summary at the end of main().
-    info "Shell init lines: skipped (--no-shell-config set). See summary at the end."
+    info "Shell init lines: skipped (--no-shell-config set). See suggestions below, if you want to manage the init details yourself."
     # Also generate the aliases block (in case the user wants
     # to copy them too).
     printf -v aliases '%s' \
