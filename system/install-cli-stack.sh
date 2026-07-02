@@ -58,23 +58,23 @@ ensure_brew() {
 # --- Tool installer ---------------------------------------------------------
 # Each entry: name | install-mac | install-linux | check-command
 TOOLS=(
-  "mise|brew install mise||mise --version"
-  "broot|brew install broot|cargo install broot|pacman -S broot|broot --version"
-  "starship|brew install starship||starship --version"
-  "zoxide|brew install zoxide|apt:zoxide|pacman -S zoxide|zoxide --version"
-  "fzf|brew install fzf|apt:fzf|pacman -S fzf|fzf --version"
-  "ripgrep|brew install ripgrep|apt:ripgrep|pacman -S ripgrep|rg --version"
-  "fd|brew install fd|apt:fd-find|pacman -S fd|fd --version"
-  "bat|brew install bat|apt:bat|pacman -S bat|bat --version"
-  "eza|brew install eza|apt:eza|pacman -S eza|eza --version"
-  "delta|brew install git-delta|brew install git-delta|pacman -S git-delta|delta --version"
-  "tldr|brew install tldr|apt:tldr|pacman -S tldr|tldr --version"
-  "atuin|brew install atuin||atuin --version"
-  "lazygit|brew install lazygit|apt:lazygit|pacman -S lazygit|lazygit --version"
+  "mise|brew install mise||mise --version|https://mise.jdx.dev"
+  "broot|brew install broot|cargo install broot|pacman -S broot|broot --version|https://github.com/Canop/broot"
+  "starship|brew install starship||starship --version|https://starship.rs"
+  "zoxide|brew install zoxide|apt:zoxide|pacman -S zoxide|zoxide --version|https://github.com/ajeetdsouza/zoxide"
+  "fzf|brew install fzf|apt:fzf|pacman -S fzf|fzf --version|https://github.com/junegunn/fzf"
+  "ripgrep|brew install ripgrep|apt:ripgrep|pacman -S ripgrep|rg --version|https://github.com/BurntSushi/ripgrep"
+  "fd|brew install fd|apt:fd-find|pacman -S fd|fd --version|https://github.com/sharkdp/fd"
+  "bat|brew install bat|apt:bat|pacman -S bat|bat --version|https://github.com/sharkdp/bat"
+  "eza|brew install eza|apt:eza|pacman -S eza|eza --version|https://github.com/eza-community/eza"
+  "delta|brew install git-delta|brew install git-delta|pacman -S git-delta|delta --version|https://github.com/dandavison/delta"
+  "tldr|brew install tldr|apt:tldr|pacman -S tldr|tldr --version|https://github.com/tldr-pages/tldr"
+  "atuin|brew install atuin||atuin --version|https://github.com/atuinsh/atuin"
+  "lazygit|brew install lazygit|apt:lazygit|pacman -S lazygit|lazygit --version|https://github.com/jesseduffield/lazygit"
 )
 
 install_tool() {
-  local name="$1" mac_cmd="$2" lin_cmd="$3" check_cmd="$4"
+  local name="$1" mac_cmd="$2" lin_cmd="$3" check_cmd="$4" homepage="$5"
 
   if command -v "$check_cmd" >/dev/null 2>&1; then
     printf "  %s✓%s %s (already installed)\n" "$GRN" "$RST" "$name"
@@ -97,15 +97,36 @@ install_tool() {
   esac
 
   if [ -z "$cmd" ]; then
-    printf "  %s⚠%s %s (no install command for this OS — install manually)\n" "$YEL" "$RST" "$name"
+    printf "  %s⚠%s %s (no install command for this OS — see %s)\n" \
+      "$YEL" "$RST" "$name" "$homepage"
     return 0
   fi
 
   printf "  %s→%s %s ... " "$CYN" "$RST" "$name"
-  if eval "$cmd" >/dev/null 2>&1; then
+  # Capture stderr so we can show the user why it failed. The full
+  # stderr for some tools is 50+ lines of cargo/rust output; we
+  # keep it all (in $err) but only print the first non-empty line
+  # + a "more info" pointer on failure. If the user wants the full
+  # output, they can re-run the install manually.
+  local err
+  err=$(eval "$cmd" 2>&1 >/dev/null) || true
+  if command -v "$check_cmd" >/dev/null 2>&1; then
     printf "\r  %s✓%s %s\n" "$GRN" "$RST" "$name"
   else
-    printf "\r  %s✗%s %s (install failed — continuing)\n" "$YEL" "$RST" "$name"
+    printf "\r  %s✗%s %s (install failed — see %s)\n" \
+      "$YEL" "$RST" "$name" "$homepage"
+    # Show the first non-empty line of stderr as a one-line hint.
+    # This is usually the actual error message ("error: ...", "fatal: ...",
+    # "command not found", etc.). If stderr is empty (some commands
+    # print to stdout for errors), we fall back to a generic message.
+    local hint
+    hint=$(printf '%s\n' "$err" | grep -v '^[[:space:]]*$' | head -1)
+    if [ -n "$hint" ]; then
+      printf "      %s→%s %s\n" "$DIM" "$RST" "$hint"
+    else
+      printf "      %s→%s no error output captured (run the install manually for details)\n" \
+        "$DIM" "$RST"
+    fi
   fi
 }
 
@@ -162,8 +183,8 @@ main() {
 
   info "Installing tools..."
   for entry in "${TOOLS[@]}"; do
-    IFS='|' read -r name mac lin check <<< "$entry"
-    install_tool "$name" "$mac" "$lin" "$check"
+    IFS='|' read -r name mac lin check url <<< "$entry"
+    install_tool "$name" "$mac" "$lin" "$check" "$url"
   done
 
   info "Configuring shell..."
