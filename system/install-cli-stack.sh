@@ -74,9 +74,9 @@ ensure_brew() {
       fi
     else
       # Rosetta shell (uname -m is x86_64). The ARM64 brew will
-      # refuse to run. Use the x86 brew if available, and warn the
-      # user so they know to either install the x86 brew or switch
-      # to a native shell for best performance.
+      # refuse to run. We need the x86 brew. If it's not installed,
+      # this script can't proceed -- bail out cleanly with a clear
+      # message.
       if [ -x /usr/local/bin/brew ]; then
         export PATH="/usr/local/bin:$PATH"
         warn "Detected x86_64 Homebrew (you're running under Rosetta 2)."
@@ -85,11 +85,24 @@ ensure_brew() {
         warn "since macOS 11) before running this script."
         return 0
       else
-        warn "Detected Apple Silicon (running under Rosetta 2), but no"
+        # No x86 brew. The ARM64 brew at /opt/homebrew will refuse
+        # to run from this x86 shell. We try to fix this two ways:
+        # 1) install the x86 brew automatically (it goes to /usr/local)
+        # 2) if install fails, the per-tool arm64 fallback in
+        #    install_tool will use the ARM64 brew via arch -arm64
+        warn "Detected Apple Silicon running under Rosetta 2, but no"
         warn "x86_64 Homebrew found at /usr/local/bin/brew."
-        warn "Install one with: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
-        warn "Make sure to run that command from a NATIVE (arm64) shell"
-        warn "so it installs to /opt/homebrew (ARM64), not /usr/local (x86)."
+        warn "Attempting to install the x86 brew automatically..."
+        if arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" >/dev/null 2>&1; then
+          if [ -x /usr/local/bin/brew ]; then
+            export PATH="/usr/local/bin:$PATH"
+            ok "Installed x86 Homebrew at /usr/local/bin/brew"
+            return 0
+          fi
+        fi
+        warn "Could not install the x86 brew automatically."
+        warn "Continuing with the ARM64 brew. Per-tool installs that fail"
+        warn "will be retried via 'arch -arm64' (see below)."
       fi
     fi
   fi
@@ -162,6 +175,20 @@ install_tool() {
   if command -v "$check_cmd" >/dev/null 2>&1; then
     printf "\r  %s✓%s %s\n" "$GRN" "$RST" "$name"
   else
+    # Install failed. If the failure looks like the "can't run under
+    # Rosetta 2" error from the ARM64 brew, retry by spawning an
+    # arm64 subshell to do the install. This works on Apple Silicon
+    # where we're in an x86 shell but the ARM64 brew is at
+    # /opt/homebrew/bin/brew.
+    if printf '%s' "$err" | grep -q "Cannot install under Rosetta 2"; then
+      printf "\r  %s↻%s %s (retrying via arm64 subshell) ... " \
+        "$CYN" "$RST" "$name"
+      err=$(arch -arm64 /bin/bash -c "$cmd" 2>&1 >/dev/null) || true
+      if command -v "$check_cmd" >/dev/null 2>&1; then
+        printf "\r  %s✓%s %s (installed via arm64 subshell)\n" "$GRN" "$RST" "$name"
+        return 0
+      fi
+    fi
     printf "\r  %s✗%s %s (install failed — see %s)\n" \
       "$YEL" "$RST" "$name" "$homepage"
     # Show the first non-empty line of stderr as a one-line hint.
