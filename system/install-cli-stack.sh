@@ -115,12 +115,20 @@ setup_shell_rc() {
   [ ! -f "$rc" ] && [ -f "$HOME/.bash_profile" ] && rc="$HOME/.bash_profile"
 
   local additions=""
-  additions+='# --- Modern CLI Stack ---'"$'\n'"
-  additions+='eval "$(mise activate bash)"'"$'\n'"
-  additions+='eval "$(starship init bash)"'"$'\n'"
-  additions+='eval "$(zoxide init bash)"'"$'\n'"
-  additions+='eval "$(fzf --bash)" 2>/dev/null || true'"$'\n"'
-  additions+='eval "$(atuin init bash)"'"$'\n"'
+
+  # Bash 3.x (macOS default) has trouble parsing the original pattern
+  # of mixing single-quoted, double-quoted, and ANSI-C quoted strings
+  # on a single line. We use printf instead — the format string is in
+  # single quotes (so $ and " are literal), and the result is appended
+  # to $additions via +=.
+  printf -v additions '%s' \
+'# --- Modern CLI Stack ---
+eval "$(mise activate bash)"
+eval "$(starship init bash)"
+eval "$(zoxide init bash)"
+eval "$(fzf --bash)" 2>/dev/null || true
+eval "$(atuin init bash)"
+'
 
   if ! grep -q "Modern CLI Stack" "$rc" 2>/dev/null; then
     printf "\n%s\n" "$additions" >> "$rc"
@@ -131,7 +139,14 @@ setup_shell_rc() {
 
   # Aliases
   if ! grep -q "alias ll=" "$rc" 2>/dev/null; then
-    printf "\n# CLI stack aliases\nalias ls='eza --icons'\nalias ll='eza -la --icons --git'\nalt='eza --tree --level=2 --icons'\nalias cat='bat'\n" >> "$rc"
+    printf -v aliases '%s' \
+'# CLI stack aliases
+alias ls='"'"'eza --icons'"'"'
+alias ll='"'"'eza -la --icons --git'"'"'
+alt='"'"'eza --tree --level=2 --icons'"'"'
+alias cat='"'"'bat'"'"'
+'
+    printf "\n%s" "$aliases" >> "$rc"
     ok "Added aliases to $rc"
   fi
 }
@@ -158,7 +173,7 @@ main() {
   ok "Done! Restart your shell or run: ${CYN}exec bash${RST}"
   echo
   info "Next steps:"
-  printf "  1. Try: ${CYN}z ${RST}(visit a few dirs first, then jump back)\n"
+  printf "  1. Try: ${CYN}z${RST} (visit a few dirs first, then jump back)\n"
   printf "  2. Try: ${CYN}Ctrl+R${RST} (search shell history)\n"
   printf "  3. Try: ${CYN}rg 'TODO'${RST} in any project\n"
   echo
