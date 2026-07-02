@@ -86,31 +86,12 @@ ensure_brew() {
         return 0
       else
         # No x86 brew. The ARM64 brew at /opt/homebrew will refuse
-        # to run from this x86 shell.
-        #
-        # We don't auto-install the x86 brew here because:
-        #   1. The Homebrew installer needs a sudo password prompt,
-        #      which would either hang (in curl|bash mode) or
-        #      require -S flag + unsafe password exposure
-        #   2. The per-tool arm64 fallback in install_tool (using
-        #      'arch -arm64 /bin/bash -c "brew install <tool>"')
-        #      handles the actual install -- it spawns a new arm64
-        #      process that can run the ARM64 brew
-        #
-        # The tradeoff: tools installed via the arm64 fallback are
-        # ARM64 binaries. They work fine in a native arm64 shell.
-        # From this x86 shell, they may or may not be runnable
-        # depending on macOS's arch support (older macOS can't
-        # run ARM64 binaries from x86 processes; newer ones may).
-        warn "Detected Apple Silicon running under Rosetta 2, but no"
-        warn "x86_64 Homebrew found at /usr/local/bin/brew."
-        warn "Will retry each install via 'arch -arm64' (spawns an"
-        warn "arm64 subshell to use the ARM64 brew)."
-        warn ""
-        warn "If you want to use the tools from THIS x86 shell,"
-        warn "install the x86 brew manually and re-run:"
-        warn "  /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
-        warn "  (you'll be prompted for your sudo password)"
+        # to run from this x86 shell. Tools get installed via the
+        # per-tool arm64 fallback (see install_tool below).
+        warn "Apple Silicon + Rosetta detected, no x86 brew found."
+        warn "Tools will be installed via 'arch -arm64' (you may see"
+        warn "extra output). To use them from THIS x86 shell, install"
+        warn "the x86 brew manually: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
       fi
     fi
   fi
@@ -213,11 +194,14 @@ install_tool() {
     #   - "Warning: The following taps are not trusted" (analytics)
     #   - "==> Downloading/Pouring/Installing/Tapping" (progress)
     #   - "Already downloaded/up-to-date" (cache hits)
-    #   - "Remote: " / "RESOLVE:" (git output for tap updates)
+    #   - "Remote: " / "RESOLVE:" (git output during tap updates)
+    #   - "  homebrew/" (lines listing trusted taps)
+    #   - "  brew reinstall" (Homebrew's hint, NOT an error -- it
+    #     means the tool is already installed at the requested version)
     local hint
     hint=$(printf '%s\n' "$err" | \
       grep -v '^[[:space:]]*$' | \
-      grep -vE '^(Warning: The following taps are not trusted|Tap formulae with deleted formulae|==> (Downloading|Pouring|Installing|Checking|Tapping|Cloning|Fetching|Patching|Autodiscovered|Searching|Updating|Pinning|Waiting|Read)|You can get trusted taps with one command|Homebrew collects anonymous|Already (downloaded|up-to-date)|Remote: |fatal: could not resolve|HEAD .* with .* has disappeared from|RESOLVE:|Updating Homebrew|HEAD is now at|--fetching|Found .* formula|Using .* formula|to be installed|\[new\]|\[updated\]|  homebrew/)' | \
+      grep -vE '^(Warning: The following taps are not trusted|Tap formulae with deleted formulae|==> (Downloading|Pouring|Installing|Checking|Tapping|Cloning|Fetching|Patching|Autodiscovered|Searching|Updating|Pinning|Waiting|Read)|You can get trusted taps with one command|Homebrew collects anonymous|Already (downloaded|up-to-date)|Remote: |fatal: could not resolve|HEAD .* with .* has disappeared from|RESOLVE:|Updating Homebrew|HEAD is now at|--fetching|Found .* formula|Using .* formula|to be installed|\[new\]|\[updated\]|  homebrew/|  brew reinstall)' | \
       tail -1)
     if [ -n "$hint" ]; then
       printf "      %s→%s %s\n" "$DIM" "$RST" "$hint"
