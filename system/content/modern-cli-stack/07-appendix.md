@@ -45,6 +45,10 @@ Key terms used throughout this PDF.
 - **Tool not found after install?** Restart your shell: `exec bash`
 - **Starship prompt empty?** Check `~/.bashrc` has the `eval` line.
 - **zoxide doesn't work?** Same — restart shell.
+- **Used `--no-shell-config` and tools don't work?** The script didn't
+  add the init lines to `~/.bashrc` because you asked it not to.
+  Either re-run without the flag, or copy the printed additions
+  block into your shell config (`.bashrc`, `.zshrc`, etc.).
 - **bat/eza showing as `batcat`/`fdfind`?** Debian aliases. Add to `~/.bashrc`:
   ```bash
   alias bat='batcat'
@@ -52,6 +56,11 @@ Key terms used throughout this PDF.
   ```
 - **WSL fonts broken?** Install Nerd Font in Windows Terminal.
 - **Permissions errors on Linux?** `sudo` the install. Don't run as root user.
+- **On Apple Silicon + Rosetta 2, the install fails with
+  "Cannot install under Rosetta 2 in ARM default prefix"?** The
+  script retries via `arch -arm64` automatically. If that also fails,
+  install the x86 Homebrew manually and re-run:
+  `arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`.
 
 # Appendix D: Uninstall
 
