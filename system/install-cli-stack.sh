@@ -208,18 +208,18 @@ ensure_brew() {
 # Each entry: name | install-mac | install-linux | check-command
 TOOLS=(
   "mise|brew install mise||mise --version|https://mise.jdx.dev"
-  "broot|brew install broot|cargo install broot|pacman -S broot|broot --version|https://github.com/Canop/broot"
+  "broot|brew install broot|cargo install broot;pacman -S broot|broot --version|https://github.com/Canop/broot"
   "starship|brew install starship||starship --version|https://starship.rs"
-  "zoxide|brew install zoxide|apt:zoxide|pacman -S zoxide|zoxide --version|https://github.com/ajeetdsouza/zoxide"
-  "fzf|brew install fzf|apt:fzf|pacman -S fzf|fzf --version|https://github.com/junegunn/fzf"
-  "ripgrep|brew install ripgrep|apt:ripgrep|pacman -S ripgrep|rg --version|https://github.com/BurntSushi/ripgrep"
-  "fd|brew install fd|apt:fd-find|pacman -S fd|fd --version|https://github.com/sharkdp/fd"
-  "bat|brew install bat|apt:bat|pacman -S bat|bat --version|https://github.com/sharkdp/bat"
-  "eza|brew install eza|apt:eza|pacman -S eza|eza --version|https://github.com/eza-community/eza"
-  "delta|brew install git-delta|brew install git-delta|pacman -S git-delta|delta --version|https://github.com/dandavison/delta"
-  "tldr|brew install tldr|apt:tldr|pacman -S tldr|tldr --version|https://github.com/tldr-pages/tldr"
+  "zoxide|brew install zoxide|apt:zoxide;pacman -S zoxide|zoxide --version|https://github.com/ajeetdsouza/zoxide"
+  "fzf|brew install fzf|apt:fzf;pacman -S fzf|fzf --version|https://github.com/junegunn/fzf"
+  "ripgrep|brew install ripgrep|apt:ripgrep;pacman -S ripgrep|rg --version|https://github.com/BurntSushi/ripgrep"
+  "fd|brew install fd|apt:fd-find;pacman -S fd|fd --version|https://github.com/sharkdp/fd"
+  "bat|brew install bat|apt:bat;pacman -S bat|bat --version|https://github.com/sharkdp/bat"
+  "eza|brew install eza|apt:eza;pacman -S eza|eza --version|https://github.com/eza-community/eza"
+  "delta|brew install git-delta|brew install git-delta;pacman -S git-delta|delta --version|https://github.com/dandavison/delta"
+  "tldr|brew install tldr|apt:tldr;pacman -S tldr|tldr --version|https://github.com/tldr-pages/tldr"
   "atuin|brew install atuin||atuin --version|https://github.com/atuinsh/atuin"
-  "lazygit|brew install lazygit|apt:lazygit|pacman -S lazygit|lazygit --version|https://github.com/jesseduffield/lazygit"
+  "lazygit|brew install lazygit|apt:lazygit;pacman -S lazygit|lazygit --version|https://github.com/jesseduffield/lazygit"
 )
 
 install_tool() {
@@ -242,12 +242,26 @@ install_tool() {
     macos) cmd="$mac_cmd" ;;
     linux|wsl)
       if [ -n "$lin_cmd" ]; then
-        case "$lin_cmd" in
-          apt:*)   cmd="sudo apt install -y ${lin_cmd#apt:}" ;;
-          dnf:*)   cmd="sudo dnf install -y ${lin_cmd#dnf:}" ;;
-          pacman:*) cmd="sudo pacman -S --noconfirm ${lin_cmd#pacman:}" ;;
-          *)       cmd="$lin_cmd" ;;
-        esac
+        # The lin field may contain multiple install variants separated
+        # by ';' (e.g. "cargo install foo;pacman -S foo"). We try each
+        # in order, using the first one that matches the current
+        # package manager. The case match converts a variant like
+        # "apt:foo" into "sudo apt install -y foo". A bare command
+        # (no prefix) like "cargo install foo" falls through to the *
+        # case and is used as-is. We use a custom IFS to split on ';'
+        # only, so variant strings with spaces (e.g. "cargo install")
+        # stay together as a single value.
+        local variants
+        IFS=';' read -ra variants <<< "$lin_cmd"
+        local variant
+        for variant in "${variants[@]}"; do
+          case "$variant" in
+            apt:*)   cmd="sudo apt install -y ${variant#apt:}"; break ;;
+            dnf:*)   cmd="sudo dnf install -y ${variant#dnf:}"; break ;;
+            pacman:*) cmd="sudo pacman -S --noconfirm ${variant#pacman:}"; break ;;
+            *)       cmd="$variant"; break ;;
+          esac
+        done
       fi
       ;;
   esac
