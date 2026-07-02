@@ -15,7 +15,7 @@
 set -euo pipefail
 
 # --- Colors & helpers -------------------------------------------------------
-RED=$'\033[0;31m'; GRN=$'\033[0;32m'; YEL=$'\033[0;33m'; CYN=$'\033[0;36m'; DIM=$'\033[2m'; RST=$'\033[0m'
+RED=$'\033[0;31m'; GRN=$'\033[0;32m'; YEL=$'\033[0;33m'; CYN=$'\033[0;36m'; BLU=$'\033[0;34m'; DIM=$'\033[2m'; RST=$'\033[0m'
 
 info()  { printf "%s[INFO]%s %s\n" "$CYN" "$RST" "$*"; }
 ok()    { printf "%s[ OK ]%s %s\n" "$GRN" "$RST" "$*"; }
@@ -86,23 +86,31 @@ ensure_brew() {
         return 0
       else
         # No x86 brew. The ARM64 brew at /opt/homebrew will refuse
-        # to run from this x86 shell. We try to fix this two ways:
-        # 1) install the x86 brew automatically (it goes to /usr/local)
-        # 2) if install fails, the per-tool arm64 fallback in
-        #    install_tool will use the ARM64 brew via arch -arm64
+        # to run from this x86 shell.
+        #
+        # We don't auto-install the x86 brew here because:
+        #   1. The Homebrew installer needs a sudo password prompt,
+        #      which would either hang (in curl|bash mode) or
+        #      require -S flag + unsafe password exposure
+        #   2. The per-tool arm64 fallback in install_tool (using
+        #      'arch -arm64 /bin/bash -c "brew install <tool>"')
+        #      handles the actual install -- it spawns a new arm64
+        #      process that can run the ARM64 brew
+        #
+        # The tradeoff: tools installed via the arm64 fallback are
+        # ARM64 binaries. They work fine in a native arm64 shell.
+        # From this x86 shell, they may or may not be runnable
+        # depending on macOS's arch support (older macOS can't
+        # run ARM64 binaries from x86 processes; newer ones may).
         warn "Detected Apple Silicon running under Rosetta 2, but no"
         warn "x86_64 Homebrew found at /usr/local/bin/brew."
-        warn "Attempting to install the x86 brew automatically..."
-        if arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" >/dev/null 2>&1; then
-          if [ -x /usr/local/bin/brew ]; then
-            export PATH="/usr/local/bin:$PATH"
-            ok "Installed x86 Homebrew at /usr/local/bin/brew"
-            return 0
-          fi
-        fi
-        warn "Could not install the x86 brew automatically."
-        warn "Continuing with the ARM64 brew. Per-tool installs that fail"
-        warn "will be retried via 'arch -arm64' (see below)."
+        warn "Will retry each install via 'arch -arm64' (spawns an"
+        warn "arm64 subshell to use the ARM64 brew)."
+        warn ""
+        warn "If you want to use the tools from THIS x86 shell,"
+        warn "install the x86 brew manually and re-run:"
+        warn "  /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+        warn "  (you'll be prompted for your sudo password)"
       fi
     fi
   fi
@@ -139,7 +147,10 @@ install_tool() {
   local name="$1" mac_cmd="$2" lin_cmd="$3" check_cmd="$4" homepage="$5"
 
   if command -v "$check_cmd" >/dev/null 2>&1; then
-    printf "  %s✓%s %s (already installed)\n" "$GRN" "$RST" "$name"
+    # Already installed -- show in blue (informational, not a
+    # fresh success). The green check is reserved for the
+    # "we just installed this" case below.
+    printf "  %s✓%s %s (already installed)\n" "$BLU" "$RST" "$name"
     return 0
   fi
 
@@ -191,16 +202,29 @@ install_tool() {
     fi
     printf "\r  %s✗%s %s (install failed — see %s)\n" \
       "$YEL" "$RST" "$name" "$homepage"
-    # Show the first non-empty line of stderr as a one-line hint.
-    # This is usually the actual error message ("error: ...", "fatal: ...",
-    # "command not found", etc.). If stderr is empty (some commands
-    # print to stdout for errors), we fall back to a generic message.
+    # Show a one-line hint from the captured output. Strategy:
+    # filter out Homebrew's progress chatter and analytics warnings
+    # (which are at the start of the output), then pick the LAST
+    # non-empty line. The last line is usually the actual error
+    # ("Error: ...", "fatal: ...", etc.), which appears AFTER all
+    # the "==> Downloading" / "==> Pouring" progress messages.
+    #
+    # Common Homebrew noise patterns we filter:
+    #   - "Warning: The following taps are not trusted" (analytics)
+    #   - "==> Downloading/Pouring/Installing/Tapping" (progress)
+    #   - "Already downloaded/up-to-date" (cache hits)
+    #   - "Remote: " / "RESOLVE:" (git output for tap updates)
     local hint
-    hint=$(printf '%s\n' "$err" | grep -v '^[[:space:]]*$' | head -1)
+    hint=$(printf '%s\n' "$err" | \
+      grep -v '^[[:space:]]*$' | \
+      grep -vE '^(Warning: The following taps are not trusted|Tap formulae with deleted formulae|==> (Downloading|Pouring|Installing|Checking|Tapping|Cloning|Fetching|Patching|Autodiscovered|Searching|Updating|Pinning|Waiting|Read)|You can get trusted taps with one command|Homebrew collects anonymous|Already (downloaded|up-to-date)|Remote: |fatal: could not resolve|HEAD .* with .* has disappeared from|RESOLVE:|Updating Homebrew|HEAD is now at|--fetching|Found .* formula|Using .* formula|to be installed|\[new\]|\[updated\]|  homebrew/)' | \
+      tail -1)
     if [ -n "$hint" ]; then
       printf "      %s→%s %s\n" "$DIM" "$RST" "$hint"
     else
-      printf "      %s→%s no error output captured (run the install manually for details)\n" \
+      # All output was Homebrew chatter. Tell the user the install
+      # failed but we couldn't extract a useful error.
+      printf "      %s→%s install failed but stderr was empty/filtered (try the install manually for diagnostics)\n" \
         "$DIM" "$RST"
     fi
   fi
@@ -275,6 +299,19 @@ main() {
   printf "  3. Try: ${CYN}rg 'TODO'${RST} in any project\n"
   echo
 }
+
+# Note for readers: Homebrew may print "Warning: The following taps
+# are not trusted" during installs. This is Homebrew's analytics
+# security feature (it asks the user to confirm trust for taps).
+# The warning is benign: the install proceeds normally, and the
+# script filters this noise from the install-failure hint.
+#
+# To silence the warning permanently, pre-approve the common taps:
+#   brew tap --force homebrew/cask
+# (the script doesn't use casks, but this suppresses the prompt)
+#
+# Or set HOMEBREW_NO_AUTO_UPDATE=1 to skip the auto-update that
+# triggers the trust prompt.
 
 main "$@"
 exit 0
