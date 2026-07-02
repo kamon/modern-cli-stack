@@ -372,6 +372,31 @@ eval "$(fzf --bash)" 2>/dev/null || true
 eval "$(atuin init bash)"
 '
 
+  if [ "$FLAG_NO_SHELL_CONFIG" -eq 1 ]; then
+    # The user wants to manage their .bashrc themselves. We
+    # generate the additions in memory (already done above) but
+    # skip writing to .bashrc. The block will be printed in the
+    # summary at the end of main().
+    info "Shell init lines: skipped (--no-shell-config set). See summary at the end."
+    # Also generate the aliases block (in case the user wants
+    # to copy them too).
+    printf -v aliases '%s' \
+'# CLI stack aliases
+alias ls='"'"'eza --icons'"'"'
+alias ll='"'"'eza -la --icons --git'"'"'
+alt='"'"'eza --tree --level=2 --icons'"'"'
+alias cat='"'"'bat'"'"'
+'
+    # Print both blocks to stderr so the user can see them
+    # immediately, even before the summary.
+    {
+      printf '\n# --- Modern CLI Stack ---\n'
+      printf '%s\n' "$additions"
+      printf '%s\n' "$aliases"
+    } >&2
+    return 0
+  fi
+
   if ! grep -q "Modern CLI Stack" "$rc" 2>/dev/null; then
     printf "\n%s\n" "$additions" >> "$rc"
     ok "Added shell init lines to $rc"
@@ -397,6 +422,35 @@ alias cat='"'"'bat'"'"'
 
 # --- Main -------------------------------------------------------------------
 main() {
+  # Parse flags. Currently supports:
+  #   --no-shell-config (or -S): don't modify .bashrc. Instead,
+  #     print the additions block at the end of the run so the user
+  #     can copy it manually. Useful for users who want to review
+  #     the changes before they land, or who manage their shell
+  #     config via a dotfiles repo.
+  FLAG_NO_SHELL_CONFIG=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --no-shell-config|-S) FLAG_NO_SHELL_CONFIG=1; shift ;;
+      -h|--help)
+        cat <<EOF
+Usage: install-cli-stack.sh [flags]
+
+Flags:
+  --no-shell-config, -S  Don't modify .bashrc. Print the additions
+                          block at the end of the run for manual
+                          application.
+  -h, --help              Show this help.
+
+Default behavior: installs the 13 tools, then appends the eval
+lines and aliases to ~/.bashrc so the tools work in new shells.
+EOF
+        exit 0 ;;
+      *) warn "Unknown flag: $1 (ignored)"; shift ;;
+    esac
+  done
+  export FLAG_NO_SHELL_CONFIG
+
   echo
   printf "%sModern CLI Stack Installer%s\n" "$CYN" "$RST"
   printf "%s13 tools. One script. Idempotent.%s\n\n" "$DIM" "$RST"
