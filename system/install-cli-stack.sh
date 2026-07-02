@@ -49,27 +49,54 @@ detect_os() {
 # --- Brew install (macOS) ---------------------------------------------------
 ensure_brew() {
   # On Apple Silicon, there are two Homebrew install paths:
-  #   /opt/homebrew/bin/brew  -- native ARM64 brew (preferred)
-  #   /usr/local/bin/brew     -- x86_64 brew (Intel or Rosetta)
-  # The native one is faster and has more reliable ARM64 builds.
-  # If it exists, prepend it to PATH so `brew` finds the right one
-  # first, regardless of what the user's current PATH says.
-  if [ -x /opt/homebrew/bin/brew ]; then
-    export PATH="/opt/homebrew/bin:$PATH"
-    info "Using native ARM64 Homebrew at /opt/homebrew/bin/brew"
-    return 0
+  #   /opt/homebrew/bin/brew  -- native ARM64 brew (runs on arm64 processes)
+  #   /usr/local/bin/brew     -- x86_64 brew (runs on x86_64 processes,
+  #                              including via Rosetta 2 emulation)
+  #
+  # The native ARM64 brew REFUSES to run under Rosetta: it aborts with
+  # "Cannot install under Rosetta 2 in ARM default prefix". So the
+  # right brew for us depends on the architecture of the current
+  # process, not which brew is installed.
+  #
+  # Decision tree:
+  #   - Apple Silicon, running ARM64 (native shell): use /opt/homebrew
+  #   - Apple Silicon, running x86_64 (Rosetta shell): use /usr/local,
+  #     warn the user (they'd be faster in a native shell)
+  #   - Intel Mac: use whatever's in PATH, no special handling
+  if sysctl -n hw.optional.arm64 2>/dev/null | grep -q 1; then
+    # Apple Silicon. Check the current process architecture.
+    if [ "$(uname -m)" = "arm64" ]; then
+      # Native shell. Prefer ARM64 brew.
+      if [ -x /opt/homebrew/bin/brew ]; then
+        export PATH="/opt/homebrew/bin:$PATH"
+        info "Using native ARM64 Homebrew at /opt/homebrew/bin/brew"
+        return 0
+      fi
+    else
+      # Rosetta shell (uname -m is x86_64). The ARM64 brew will
+      # refuse to run. Use the x86 brew if available, and warn the
+      # user so they know to either install the x86 brew or switch
+      # to a native shell for best performance.
+      if [ -x /usr/local/bin/brew ]; then
+        export PATH="/usr/local/bin:$PATH"
+        warn "Detected x86_64 Homebrew (you're running under Rosetta 2)."
+        warn "Tools will install as x86 binaries. For native ARM64 speed,"
+        warn "switch to a native arm64 shell (Terminal.app's default"
+        warn "since macOS 11) before running this script."
+        return 0
+      else
+        warn "Detected Apple Silicon (running under Rosetta 2), but no"
+        warn "x86_64 Homebrew found at /usr/local/bin/brew."
+        warn "Install one with: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+        warn "Make sure to run that command from a NATIVE (arm64) shell"
+        warn "so it installs to /opt/homebrew (ARM64), not /usr/local (x86)."
+      fi
+    fi
   fi
 
-  # If we're on Apple Silicon (ARM64-capable CPU) but only the x86
-  # brew is available, we're running under Rosetta 2. The x86 brew
-  # works but installs slower x86 binaries; some tools may also be
-  # missing x86 builds. Warn the user so they can decide.
-  if [ "$(uname -m)" = "x86_64" ] && sysctl -n hw.optional.arm64 2>/dev/null | grep -q 1; then
-    warn "Detected x86_64 Homebrew under Rosetta 2 on Apple Silicon."
-    warn "Tools will install as x86 binaries. For native ARM64 speed,"
-    warn "install Homebrew natively: https://brew.sh"
-  fi
-
+  # Fallback: no special handling. Use whatever brew is in PATH.
+  # (Covers Intel Macs and the case where the architecture-specific
+  # paths above didn't match.)
   if ! command -v brew >/dev/null 2>&1; then
     warn "Homebrew not found. Installing..."
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
