@@ -64,22 +64,90 @@ Key terms used throughout this PDF.
 
 # Appendix D: Uninstall
 
-=== macOS ===
+Three steps: remove the tools, remove the shell init block, and
+(optionally) clean up per-tool config directories.
+
+## Step 1: Remove the tools
+
+### macOS
 
 ```bash
 brew uninstall mise broot starship zoxide fzf ripgrep fd bat
-brew uninstall eza git-delta tldr atuin lazygit gh
+brew uninstall eza git-delta tldr atuin lazygit
 ```
 
-=== Debian / Ubuntu ===
+### Debian / Ubuntu
 
 ```bash
 sudo apt remove mise broot zoxide fzf ripgrep fd-find bat
-sudo apt remove eza git-delta tldr atuin lazygit gh
+sudo apt remove eza git-delta tldr atuin lazygit
 ```
 
-Config files in `~/.config/` are preserved so re-running the install
-restores your setup.
+(Some tools — `broot`, `starship`, `delta` — may not be in the
+default Debian repos. If `apt remove` can't find them, skip
+that line — they were probably installed via the script's
+`cargo install` fallback or downloaded manually.)
+
+### Fedora / RHEL
+
+```bash
+sudo dnf remove mise broot zoxide fzf ripgrep fd-find bat
+sudo dnf remove eza git-delta tldr atuin lazygit
+```
+
+### Arch / Manjaro
+
+```bash
+sudo pacman -Rns mise broot zoxide fzf ripgrep fd bat
+sudo pacman -Rns eza git-delta tldr atuin lazygit
+```
+
+(`starship`, `delta`, `broot` may not be in the default Arch
+repos. If `pacman` can't find them, skip that line — they were
+probably installed via the script's `cargo install` fallback.)
+
+## Step 2: Remove the shell init block
+
+The install script appended a `# --- Modern CLI Stack ---` block
+to your `~/.bashrc`. To remove it:
+
+```bash
+# Show what's there
+grep -A 6 "Modern CLI Stack" ~/.bashrc
+
+# Remove the block (and the aliases section after it). The exact
+# range depends on how many lines the script added; this example
+# removes the init block + 7 lines of aliases = ~16 lines.
+# Or use your editor and delete the block manually.
+ed ~/.bashrc <<'EOF'
+/# --- Modern CLI Stack ---/
+.,/# CLI stack aliases/#
+/# CLI stack aliases/+1,/# --- Modern CLI Stack ---/-1d
+wq
+EOF
+```
+
+If you used the `--no-shell-config` flag when installing, there's
+nothing to remove from `~/.bashrc` (the script never wrote to it).
+The init block and aliases are wherever you put them.
+
+## Step 3 (optional): Remove per-tool config
+
+Some tools write their own config to `~/.config/`. The install
+script doesn't touch these — they're created on first run by
+the tools themselves. If you want a full clean uninstall:
+
+```bash
+rm -rf ~/.config/atuin      # shell history DB
+rm -rf ~/.config/starship   # prompt config
+rm -rf ~/.config/mise       # version manager config
+rm -rf ~/.config/broot      # tree navigator history
+```
+
+The install script is idempotent: running it again on a fresh
+system reproduces the setup. If you've removed the `.bashrc`
+block and want to re-install, just run `bash install-cli-stack.sh`
+again — it will detect the missing state and re-add everything.
 
 # Appendix E: Resources
 
