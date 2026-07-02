@@ -32,6 +32,14 @@ err()   { printf "%s[FAIL]%s %s\n" "$RED" "$RST" "$*" >&2; }
 # arrays) so the entry is atomic -- no risk of misalignment.
 INSTALL_RESULTS=()
 
+# Aggregate state. These track whether the script actually did
+# anything, used to gate the end-of-run "Done" and "Next steps"
+# messages. If nothing changed, those messages are misleading
+# (suggesting a restart or new things to try when nothing was
+# actually added).
+TOOLS_FRESHLY_INSTALLED=0  # count of tools we installed in this run
+SHELL_CONFIG_MODIFIED=0   # set to 1 if we added to .bashrc or aliases
+
 # Find a tool's path. Tries the current shell first, then the arm64
 # subshell (on Apple Silicon). The arm64 subshell is important when
 # running under Rosetta: the ARM64 brew at /opt/homebrew installs
@@ -283,6 +291,7 @@ install_tool() {
   err=$(eval "$cmd" 2>&1 >/dev/null) || true
   if install_path=$(find_tool_path "$check_cmd" 2>/dev/null || true) && [ -n "$install_path" ]; then
     record_install "$name" "installed" "$install_path" "freshly installed"
+    TOOLS_FRESHLY_INSTALLED=$((TOOLS_FRESHLY_INSTALLED + 1))
     printf "\r  %s✓%s %s\n" "$GRN" "$RST" "$name"
   else
     # Install failed. If the failure looks like the "can't run under
@@ -296,6 +305,7 @@ install_tool() {
       err=$(arch -arm64 /bin/bash -c "$cmd" 2>&1 >/dev/null) || true
       if install_path=$(find_tool_path "$check_cmd" 2>/dev/null || true) && [ -n "$install_path" ]; then
         record_install "$name" "installed" "$install_path" "installed via arm64 subshell"
+        TOOLS_FRESHLY_INSTALLED=$((TOOLS_FRESHLY_INSTALLED + 1))
         printf "\r  %s✓%s %s (installed via arm64 subshell)\n" "$GRN" "$RST" "$name"
         return 0
       fi
@@ -365,6 +375,7 @@ eval "$(atuin init bash)"
   if ! grep -q "Modern CLI Stack" "$rc" 2>/dev/null; then
     printf "\n%s\n" "$additions" >> "$rc"
     ok "Added shell init lines to $rc"
+    SHELL_CONFIG_MODIFIED=1
   else
     info "Shell init lines already present in $rc"
   fi
@@ -380,6 +391,7 @@ alias cat='"'"'bat'"'"'
 '
     printf "\n%s" "$aliases" >> "$rc"
     ok "Added aliases to $rc"
+    SHELL_CONFIG_MODIFIED=1
   fi
 }
 
@@ -408,14 +420,28 @@ main() {
   info "Configuring shell..."
   setup_shell_rc
 
+  # The "Done! Restart your shell" and "Next steps" messages are
+  # misleading if the script didn't actually change anything. Show
+  # them only when there's a real reason for the user to act:
+  #   - "Done! Restart your shell" -- only if we modified .bashrc
+  #     (new shell init lines or aliases). If the config was
+  #     already up-to-date, a restart would do nothing.
+  #   - "Next steps" -- only if we actually installed a new tool.
+  #     If everything was already installed, the user has
+  #     presumably already tried z/Ctrl+R/rg and the suggestions
+  #     are noise.
   echo
-  ok "Done! Restart your shell or run: ${CYN}exec bash${RST}"
+  if [ "$SHELL_CONFIG_MODIFIED" -eq 1 ]; then
+    ok "Done! Restart your shell or run: ${CYN}exec bash${RST}"
+  fi
   echo
-  info "Next steps:"
-  printf "  1. Try: ${CYN}z${RST} (visit a few dirs first, then jump back)\n"
-  printf "  2. Try: ${CYN}Ctrl+R${RST} (search shell history)\n"
-  printf "  3. Try: ${CYN}rg 'TODO'${RST} in any project\n"
-  echo
+  if [ "$TOOLS_FRESHLY_INSTALLED" -gt 0 ]; then
+    info "Next steps:"
+    printf "  1. Try: ${CYN}z${RST} (visit a few dirs first, then jump back)\n"
+    printf "  2. Try: ${CYN}Ctrl+R${RST} (search shell history)\n"
+    printf "  3. Try: ${CYN}rg 'TODO'${RST} in any project\n"
+    echo
+  fi
 }
 
 # Note for readers: Homebrew may print "Warning: The following taps
