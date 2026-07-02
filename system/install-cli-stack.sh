@@ -22,6 +22,104 @@ ok()    { printf "%s[ OK ]%s %s\n" "$GRN" "$RST" "$*"; }
 warn()  { printf "%s[WARN]%s %s\n" "$YEL" "$RST" "$*"; }
 err()   { printf "%s[FAIL]%s %s\n" "$RED" "$RST" "$*" >&2; }
 
+# --- Install result tracking ----------------------------------------------
+# Each entry is "name|status|path|note" where:
+#   status: "installed" or "failed"
+#   path:   the tool's filesystem path, or empty if not found
+#   note:   short human-readable note (e.g. "already installed",
+#           "installed via arm64 subshell", "see https://...")
+# We use a single array with a delimiter (rather than 4 parallel
+# arrays) so the entry is atomic -- no risk of misalignment.
+INSTALL_RESULTS=()
+
+# Find a tool's path. Tries the current shell first, then the arm64
+# subshell (on Apple Silicon). The arm64 subshell is important when
+# running under Rosetta: the ARM64 brew at /opt/homebrew installs
+# tools to /opt/homebrew/bin, which the x86 shell might not have
+# in PATH. Spawning an arm64 subshell lets us query the arm64 PATH
+# and find tools that exist but aren't visible to the x86 shell.
+find_tool_path() {
+  local cmd="$1"
+  local tool_name="${cmd%% *}"  # first word, e.g. "mise" from "mise --version"
+  if command -v "$tool_name" >/dev/null 2>&1; then
+    command -v "$tool_name"
+    return 0
+  fi
+  # On Apple Silicon, try the arm64 subshell. This finds tools
+  # installed by the arm64 brew that the x86 shell can't see.
+  if sysctl -n hw.optional.arm64 2>/dev/null | grep -q 1; then
+    local arm64_path
+    arm64_path=$(arch -arm64 /bin/bash -c "command -v $tool_name" 2>/dev/null || true)
+    if [ -n "$arm64_path" ]; then
+      echo "$arm64_path"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+# Record a result for the post-install summary table.
+record_install() {
+  local name="$1"
+  local status="$2"
+  local path="$3"
+  local note="$4"
+  INSTALL_RESULTS+=("$name|$status|$path|$note")
+}
+
+# Print the install summary table. Called at the end of main.
+print_install_summary() {
+  [ ${#INSTALL_RESULTS[@]} -eq 0 ] && return 0
+
+  echo
+  info "Install summary:"
+
+  # Compute the longest name for column alignment
+  local max_name_len=0
+  for result in "${INSTALL_RESULTS[@]}"; do
+    local n="${result%%|*}"
+    [ ${#n} -gt $max_name_len ] && max_name_len=${#n}
+  done
+
+  # Find the longest path, capped at 60 chars (so very long paths
+  # don't make the table too wide)
+  local max_path_len=0
+  for result in "${INSTALL_RESULTS[@]}"; do
+    local p
+    p=$(printf '%s' "$result" | awk -F'|' '{print $3}')
+    [ ${#p} -gt $max_path_len ] && max_path_len=${#p}
+  done
+  if [ $max_path_len -gt 60 ]; then
+    max_path_len=60
+  fi
+
+  for result in "${INSTALL_RESULTS[@]}"; do
+    IFS='|' read -r rname rstatus rpath rnote <<< "$result"
+    local symbol color
+    if [ "$rstatus" = "installed" ]; then
+      if printf '%s' "$rnote" | grep -q "already"; then
+        symbol="✓"; color="$BLU"
+      else
+        symbol="✓"; color="$GRN"
+      fi
+    else
+      symbol="✗"; color="$YEL"
+    fi
+
+    # Truncate from the start if too long (the right side is more
+    # interesting for paths like /opt/homebrew/bin/foo)
+    local display_path="$rpath"
+    if [ -z "$display_path" ]; then
+      display_path="—"
+    elif [ ${#display_path} -gt 60 ]; then
+      display_path="...${display_path: -57}"
+    fi
+
+    printf "  %s%s%s %-${max_name_len}s  %-${max_path_len}s  %s\n" \
+      "$color" "$symbol" "$RST" "$rname" "$display_path" "$rnote"
+  done
+}
+
 # --- OS detection -----------------------------------------------------------
 detect_os() {
   case "$(uname -s)" in
@@ -127,10 +225,14 @@ TOOLS=(
 install_tool() {
   local name="$1" mac_cmd="$2" lin_cmd="$3" check_cmd="$4" homepage="$5"
 
-  if command -v "$check_cmd" >/dev/null 2>&1; then
-    # Already installed -- show in blue (informational, not a
-    # fresh success). The green check is reserved for the
-    # "we just installed this" case below.
+  # Check if already installed. Try the current shell first, then
+  # the arm64 subshell on Apple Silicon. This handles the case
+  # where the user is running under Rosetta and tools were installed
+  # by the ARM64 brew (which the x86 shell's PATH might not include).
+  local existing_path
+  existing_path=$(find_tool_path "$check_cmd" 2>/dev/null || true)
+  if [ -n "$existing_path" ]; then
+    record_install "$name" "installed" "$existing_path" "already installed"
     printf "  %s✓%s %s (already installed)\n" "$BLU" "$RST" "$name"
     return 0
   fi
@@ -153,6 +255,7 @@ install_tool() {
   if [ -z "$cmd" ]; then
     printf "  %s⚠%s %s (no install command for this OS — see %s)\n" \
       "$YEL" "$RST" "$name" "$homepage"
+    record_install "$name" "failed" "" "no install command for this OS — see $homepage"
     return 0
   fi
 
@@ -164,7 +267,8 @@ install_tool() {
   # output, they can re-run the install manually.
   local err
   err=$(eval "$cmd" 2>&1 >/dev/null) || true
-  if command -v "$check_cmd" >/dev/null 2>&1; then
+  if install_path=$(find_tool_path "$check_cmd" 2>/dev/null || true) && [ -n "$install_path" ]; then
+    record_install "$name" "installed" "$install_path" "freshly installed"
     printf "\r  %s✓%s %s\n" "$GRN" "$RST" "$name"
   else
     # Install failed. If the failure looks like the "can't run under
@@ -176,7 +280,8 @@ install_tool() {
       printf "\r  %s↻%s %s (retrying via arm64 subshell) ... " \
         "$CYN" "$RST" "$name"
       err=$(arch -arm64 /bin/bash -c "$cmd" 2>&1 >/dev/null) || true
-      if command -v "$check_cmd" >/dev/null 2>&1; then
+      if install_path=$(find_tool_path "$check_cmd" 2>/dev/null || true) && [ -n "$install_path" ]; then
+        record_install "$name" "installed" "$install_path" "installed via arm64 subshell"
         printf "\r  %s✓%s %s (installed via arm64 subshell)\n" "$GRN" "$RST" "$name"
         return 0
       fi
@@ -205,11 +310,13 @@ install_tool() {
       tail -1)
     if [ -n "$hint" ]; then
       printf "      %s→%s %s\n" "$DIM" "$RST" "$hint"
+      record_install "$name" "failed" "" "see $homepage — $hint"
     else
       # All output was Homebrew chatter. Tell the user the install
       # failed but we couldn't extract a useful error.
       printf "      %s→%s install failed but stderr was empty/filtered (try the install manually for diagnostics)\n" \
         "$DIM" "$RST"
+      record_install "$name" "failed" "" "see $homepage — no error details captured"
     fi
   fi
 }
@@ -270,6 +377,13 @@ main() {
     IFS='|' read -r name mac lin check url <<< "$entry"
     install_tool "$name" "$mac" "$lin" "$check" "$url"
   done
+
+  # Post-install summary: shows status of each tool with its path
+  # (or "—" if not found). Makes it easy to see at a glance which
+  # tools are installed and where, especially helpful when running
+  # under Rosetta where some tools may be in the arm64 PATH but
+  # not visible to the x86 shell.
+  print_install_summary
 
   info "Configuring shell..."
   setup_shell_rc
