@@ -303,10 +303,16 @@ install_tool() {
     #   - "  homebrew/" (lines listing trusted taps)
     #   - "  brew reinstall" (Homebrew's hint, NOT an error -- it
     #     means the tool is already installed at the requested version)
+    #   - "Warning: <tool> <version> is already installed and up-to-date"
+    #     (same: Homebrew's "tool is here" message, not an error)
+    #   - "To reinstall <version>, run:" (parent line of the above;
+    #     introduces the reinstall command which we already filter)
+    #   - "==> Auto-updating Homebrew" / "==> Updating Homebrew" / etc.
+    #     (the auto-update step that triggered the trust prompt)
     local hint
     hint=$(printf '%s\n' "$err" | \
       grep -v '^[[:space:]]*$' | \
-      grep -vE '^(Warning: The following taps are not trusted|Tap formulae with deleted formulae|==> (Downloading|Pouring|Installing|Checking|Tapping|Cloning|Fetching|Patching|Autodiscovered|Searching|Updating|Pinning|Waiting|Read)|You can get trusted taps with one command|Homebrew collects anonymous|Already (downloaded|up-to-date)|Remote: |fatal: could not resolve|HEAD .* with .* has disappeared from|RESOLVE:|Updating Homebrew|HEAD is now at|--fetching|Found .* formula|Using .* formula|to be installed|\[new\]|\[updated\]|  homebrew/|  brew reinstall)' | \
+      grep -vE '^(Warning: The following taps are not trusted|Warning: [a-zA-Z0-9_.-]+ [0-9].* is already installed|Tap formulae with deleted formulae|==> (Downloading|Pouring|Installing|Checking|Tapping|Cloning|Fetching|Patching|Autodiscovered|Searching|Updating|Pinning|Waiting|Read|Auto-updating)|You can get trusted taps with one command|Homebrew collects anonymous|Already (downloaded|up-to-date)|Remote: |fatal: could not resolve|HEAD .* with .* has disappeared from|RESOLVE:|Updating Homebrew|HEAD is now at|--fetching|Found .* formula|Using .* formula|to be installed|\[new\]|\[updated\]|  homebrew/|  brew reinstall|To reinstall [0-9].*, run:)' | \
       tail -1)
     if [ -n "$hint" ]; then
       printf "      %s→%s %s\n" "$DIM" "$RST" "$hint"
