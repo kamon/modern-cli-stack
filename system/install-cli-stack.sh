@@ -980,6 +980,85 @@ uninstall_shell_rc() {
   fi
 }
 
+# --- Uninstall: orchestrator ------------------------------------------------
+# Loops over TOOLS, finds which are installed, prompts the
+# user for each, and runs uninstall_tool on the accepted ones.
+# At the end, prompts to remove the .bashrc additions.
+run_uninstall() {
+  local uninstalled=0
+  local skipped=0
+  local failed=0
+
+  info "Checking which tools are currently installed..."
+
+  for entry in "${TOOLS[@]}"; do
+    IFS='|' read -r name mac lin check url <<< "$entry"
+
+    # Find the tool's path. find_tool_path handles PATH, arm64
+    # subshell, and the ~/.local/bin fallback.
+    local tool_path
+    tool_path=$(find_tool_path "$check" 2>/dev/null || true)
+    if [ -z "$tool_path" ]; then
+      skipped=$((skipped + 1))
+      continue
+    fi
+
+    printf "\n  %s?%s %s found at: %s\n" \
+      "$YEL" "$RST" "$name" "$tool_path"
+
+    if [ ! -t 0 ]; then
+      # Non-interactive (curl|bash etc.). Skip without prompting.
+      info "Non-interactive -- skipping $name."
+      skipped=$((skipped + 1))
+      continue
+    fi
+
+    printf "  Uninstall? [y/N] "
+    local answer
+    read -r answer
+    case "$answer" in
+      [yY]|[yY][eE][sS])
+        if uninstall_tool "$name" "$mac" "$lin" "$check" "$url" "$tool_path"; then
+          uninstalled=$((uninstalled + 1))
+        else
+          failed=$((failed + 1))
+        fi
+        ;;
+      *)
+        info "Skipped $name."
+        skipped=$((skipped + 1))
+        ;;
+    esac
+  done
+
+  # .bashrc cleanup
+  echo
+  if [ -t 0 ]; then
+    printf "  %s?%s Remove the Modern CLI Stack block from .bashrc? [y/N] " \
+      "$YEL" "$RST"
+    local answer
+    read -r answer
+    case "$answer" in
+      [yY]|[yY][eE][sS])
+        uninstall_shell_rc
+        ;;
+      *)
+        info "Skipped .bashrc cleanup."
+        ;;
+    esac
+  else
+    info "Non-interactive -- skipping .bashrc cleanup."
+  fi
+
+  # Per-tool config cleanup hint
+  echo
+  info "Optional manual cleanup (not done automatically):"
+  printf "    %srm -rf ~/.config/atuin ~/.config/starship ~/.config/mise ~/.config/broot%s\n" \
+    "$DIM" "$RST"
+  echo
+  ok "Uninstall complete. Removed: $uninstalled | Skipped: $skipped | Failed: $failed"
+}
+
 # --- Main -------------------------------------------------------------------
 main() {
   # Parse flags. Currently supports:
@@ -988,10 +1067,16 @@ main() {
   #     can copy it manually. Useful for users who want to review
   #     the changes before they land, or who manage their shell
   #     config via a dotfiles repo.
+  #   --uninstall (or -U): interactive uninstall. Prompts for each
+  #     tool before removing it. Also removes the .bashrc additions
+  #     (with its own prompt). This is the reverse of the default
+  #     install flow.
   FLAG_NO_SHELL_CONFIG=0
+  FLAG_UNINSTALL=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --no-shell-config|-S) FLAG_NO_SHELL_CONFIG=1; shift ;;
+      --uninstall|-U)       FLAG_UNINSTALL=1; shift ;;
       -h|--help)
         cat <<EOF
 Usage: install-cli-stack.sh [flags]
@@ -1000,6 +1085,10 @@ Flags:
   --no-shell-config, -S  Don't modify .bashrc. Print the additions
                           block at the end of the run for manual
                           application.
+  --uninstall, -U         Interactive uninstall. Prompts for each
+                          tool before removing it. Also removes
+                          the .bashrc additions. Run with this
+                          flag on the same OS you installed on.
   -h, --help              Show this help.
 
 Default behavior: installs the 13 tools, then appends the eval
@@ -1010,6 +1099,17 @@ EOF
     esac
   done
   export FLAG_NO_SHELL_CONFIG
+  export FLAG_UNINSTALL
+
+  # Branch into uninstall flow if --uninstall was passed
+  if [ "$FLAG_UNINSTALL" -eq 1 ]; then
+    echo
+    printf "%sModern CLI Stack Uninstaller%s\n" "$CYN" "$RST"
+    printf "%sInteractive -- prompts before each removal.%s\n\n" "$DIM" "$RST"
+    detect_os  # needed for uninstall_tool's package-manager dispatch
+    run_uninstall
+    exit 0
+  fi
 
   echo
   printf "%sModern CLI Stack Installer%s\n" "$CYN" "$RST"
