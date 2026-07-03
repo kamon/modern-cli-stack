@@ -235,7 +235,7 @@ TOOLS=(
   "bat|brew install bat|apt:bat;github:sharkdp/bat;pacman -S bat|bat --version|https://github.com/sharkdp/bat"
   "eza|brew install eza|cargo install eza;github:eza-community/eza;apt:eza;pacman -S eza|eza --version|https://github.com/eza-community/eza"
   "delta|brew install git-delta|cargo install git-delta;github:dandavison/delta;pacman -S git-delta|delta --version|https://github.com/dandavison/delta"
-  "tldr|brew install tldr|github:tldr-pages/tldr;apt:tldr;pacman -S tldr|tldr --version|https://github.com/tldr-pages/tldr"
+  "tldr|brew install tldr|apt:tldr;pacman -S tldr|tldr --version|https://github.com/tldr-pages/tldr"
   "atuin|brew install atuin|cargo install atuin --locked;github:atuinsh/atuin;pacman -S atuin|atuin --version|https://github.com/atuinsh/atuin"
   "lazygit|brew install lazygit|cargo install lazygit;github:jesseduffield/lazygit;apt:lazygit;pacman -S lazygit|lazygit --version|https://github.com/jesseduffield/lazygit"
 )
@@ -384,8 +384,11 @@ install_tool() {
       fi
 
       if [ "$proceed" -eq 1 ]; then
-        printf "  %s↻%s %s (downloading from GitHub) ... " \
-          "$CYN" "$RST" "$name"
+        # The status line was already printed by install_tool
+        # ("  → name ... "). The install command itself will print
+        # "  downloading from GitHub: ..." which is more specific
+        # than a static "(downloading from GitHub)" message. So
+        # no extra printf here.
         cmd=$(install_from_github_release "$name" "$github_repo" 2>/dev/null) || cmd=""
       fi
     fi
@@ -737,7 +740,11 @@ if [ -z "\$binary" ]; then
   find . -type f | head -20 | sed 's/^/    /' >&2
   exit 1
 fi
-install -m 755 "\$binary" "$install_dir/$tool_name" || { echo "  install failed" >&2; exit 1; }
+# Use the binary's actual filename (basename) so the installed
+# command matches the binary's name. For ripgrep, the binary is
+# 'rg' but the tool name is 'ripgrep' -- so we install as 'rg'.
+binary_name=\$(basename "\$binary")
+install -m 755 "\$binary" "$install_dir/\$binary_name" || { echo "  install failed" >&2; exit 1; }
 cd /
 rm -rf "\$tmpdir"
 INSTALL_CMD
