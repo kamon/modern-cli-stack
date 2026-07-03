@@ -215,19 +215,19 @@ ensure_brew() {
 # --- Tool installer ---------------------------------------------------------
 # Each entry: name | install-mac | install-linux | check-command
 TOOLS=(
-  "mise|brew install mise||mise --version|https://mise.jdx.dev"
-  "broot|brew install broot|cargo install broot;pacman -S broot|broot --version|https://github.com/Canop/broot"
-  "starship|brew install starship||starship --version|https://starship.rs"
-  "zoxide|brew install zoxide|apt:zoxide;pacman -S zoxide|zoxide --version|https://github.com/ajeetdsouza/zoxide"
-  "fzf|brew install fzf|apt:fzf;pacman -S fzf|fzf --version|https://github.com/junegunn/fzf"
-  "ripgrep|brew install ripgrep|apt:ripgrep;pacman -S ripgrep|rg --version|https://github.com/BurntSushi/ripgrep"
-  "fd|brew install fd|apt:fd-find;pacman -S fd|fd --version|https://github.com/sharkdp/fd"
-  "bat|brew install bat|apt:bat;pacman -S bat|bat --version|https://github.com/sharkdp/bat"
-  "eza|brew install eza|apt:eza;pacman -S eza|eza --version|https://github.com/eza-community/eza"
-  "delta|brew install git-delta|brew install git-delta;pacman -S git-delta|delta --version|https://github.com/dandavison/delta"
-  "tldr|brew install tldr|apt:tldr;pacman -S tldr|tldr --version|https://github.com/tldr-pages/tldr"
-  "atuin|brew install atuin||atuin --version|https://github.com/atuinsh/atuin"
-  "lazygit|brew install lazygit|apt:lazygit;pacman -S lazygit|lazygit --version|https://github.com/jesseduffield/lazygit"
+  "mise|brew install mise|cargo install mise --locked;apt:mise;pacman -S mise|mise --version|https://mise.jdx.dev"
+  "broot|brew install broot|cargo install broot --locked;pacman -S broot|broot --version|https://github.com/Canop/broot"
+  "starship|brew install starship|cargo install starship --locked;pacman -S starship|starship --version|https://starship.rs"
+  "zoxide|brew install zoxide|apt:zoxide;cargo install zoxide --locked;pacman -S zoxide|zoxide --version|https://github.com/ajeetdsouza/zoxide"
+  "fzf|brew install fzf|apt:fzf;cargo install fzf;pacman -S fzf|fzf --version|https://github.com/junegunn/fzf"
+  "ripgrep|brew install ripgrep|apt:ripgrep;cargo install ripgrep;pacman -S ripgrep|rg --version|https://github.com/BurntSushi/ripgrep"
+  "fd|brew install fd|apt:fd-find;cargo install fd-find --locked;pacman -S fd|fd --version|https://github.com/sharkdp/fd"
+  "bat|brew install bat|apt:bat;cargo install bat --locked;pacman -S bat|bat --version|https://github.com/sharkdp/bat"
+  "eza|brew install eza|cargo install eza;apt:eza;pacman -S eza|eza --version|https://github.com/eza-community/eza"
+  "delta|brew install git-delta|cargo install git-delta;pacman -S git-delta|delta --version|https://github.com/dandavison/delta"
+  "tldr|brew install tldr|cargo install tldr;apt:tldr;pacman -S tldr|tldr --version|https://github.com/tldr-pages/tldr"
+  "atuin|brew install atuin|cargo install atuin --locked;pacman -S atuin|atuin --version|https://github.com/atuinsh/atuin"
+  "lazygit|brew install lazygit|cargo install lazygit;apt:lazygit;pacman -S lazygit|lazygit --version|https://github.com/jesseduffield/lazygit"
 )
 
 install_tool() {
@@ -252,22 +252,64 @@ install_tool() {
       if [ -n "$lin_cmd" ]; then
         # The lin field may contain multiple install variants separated
         # by ';' (e.g. "cargo install foo;pacman -S foo"). We try each
-        # in order, using the first one that matches the current
-        # package manager. The case match converts a variant like
-        # "apt:foo" into "sudo apt install -y foo". A bare command
-        # (no prefix) like "cargo install foo" falls through to the *
-        # case and is used as-is. We use a custom IFS to split on ';'
-        # only, so variant strings with spaces (e.g. "cargo install")
-        # stay together as a single value.
+        # in order, using the first one that:
+        #   (a) has its underlying command available, AND
+        #   (b) for package-manager variants, the package actually
+        #       exists in the repo.
+        #
+        # This avoids common failures:
+        #   - "cargo: command not found" when cargo isn't installed
+        #   - "brew: command not found" on Linux (brew isn't there)
+        #   - "E: Unable to locate package" when the apt package doesn't exist
+        #   - "error: target not found: foo" on Arch if the package isn't in repos
+        #
+        # The case match converts a variant like "apt:foo" into
+        # "sudo apt install -y foo". A bare command (no prefix) like
+        # "cargo install foo" falls through to the * case and is used
+        # as-is, after checking that the command (e.g. "cargo") is
+        # actually available.
         local variants
         IFS=';' read -ra variants <<< "$lin_cmd"
         local variant
         for variant in "${variants[@]}"; do
           case "$variant" in
-            apt:*)   cmd="sudo apt install -y ${variant#apt:}"; break ;;
-            dnf:*)   cmd="sudo dnf install -y ${variant#dnf:}"; break ;;
-            pacman:*) cmd="sudo pacman -S --noconfirm ${variant#pacman:}"; break ;;
-            *)       cmd="$variant"; break ;;
+            apt:*)
+              pkg="${variant#apt:}"
+              # Check the package exists in the apt cache before
+              # trying to install. apt-cache show returns 0 if found.
+              if command -v apt-cache >/dev/null 2>&1 && \
+                 apt-cache show "$pkg" >/dev/null 2>&1; then
+                cmd="sudo apt install -y $pkg"
+                break
+              fi
+              ;;
+            dnf:*)
+              pkg="${variant#dnf:}"
+              if command -v dnf >/dev/null 2>&1 && \
+                 dnf info "$pkg" >/dev/null 2>&1; then
+                cmd="sudo dnf install -y $pkg"
+                break
+              fi
+              ;;
+            pacman:*)
+              pkg="${variant#pacman:}"
+              # Only try pacman if pacman is installed AND the
+              # package is in the configured repos.
+              if command -v pacman >/dev/null 2>&1 && \
+                 pacman -Si "$pkg" >/dev/null 2>&1; then
+                cmd="sudo pacman -S --noconfirm $pkg"
+                break
+              fi
+              ;;
+            *)
+              # Bare command (e.g. "cargo install foo"). Check the
+              # first word is available before trying.
+              first_word=$(echo "$variant" | awk '{print $1}')
+              if command -v "$first_word" >/dev/null 2>&1; then
+                cmd="$variant"
+                break
+              fi
+              ;;
           esac
         done
       fi
