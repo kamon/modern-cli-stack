@@ -550,31 +550,59 @@ install_tool() {
 
 # --- Shell rc setup ---------------------------------------------------------
 setup_shell_rc() {
-  local rc="$HOME/.bashrc"
-  [ ! -f "$rc" ] && [ -f "$HOME/.bash_profile" ] && rc="$HOME/.bash_profile"
+  # Detect the user's shell and pick the right config file +
+  # the right per-tool init command suffix. On macOS the
+  # default shell is zsh; on most Linux distros it's bash.
+  # We honor $SHELL if set, otherwise guess from existing config
+  # files (preferring the user's actual login shell).
+  local user_shell="bash"
+  if [ -n "$SHELL" ]; then
+    case "$SHELL" in
+      */zsh)  user_shell="zsh" ;;
+      */bash) user_shell="bash" ;;
+      *)      user_shell="bash" ;;
+    esac
+  fi
+
+  # Pick the right config file. For zsh, .zshrc (sourced for
+  # interactive non-login shells; this is the right place for
+  # shell completion and aliases). For bash, .bashrc.
+  local rc
+  case "$user_shell" in
+    zsh)  rc="$HOME/.zshrc" ;;
+    *)    rc="$HOME/.bashrc"
+          [ ! -f "$rc" ] && [ -f "$HOME/.bash_profile" ] && rc="$HOME/.bash_profile" ;;
+  esac
+
+  # Pick the right init-command suffix for each tool
+  local init_suffix
+  case "$user_shell" in
+    zsh)  init_suffix="zsh" ;;
+    *)    init_suffix="bash" ;;
+  esac
 
   local additions=""
-
   # Bash 3.x (macOS default) has trouble parsing the original pattern
   # of mixing single-quoted, double-quoted, and ANSI-C quoted strings
   # on a single line. We use printf instead — the format string is in
   # single quotes (so $ and " are literal), and the result is appended
   # to $additions via +=.
   printf -v additions '%s' \
-'# --- Modern CLI Stack ---
-eval "$(mise activate bash)"
-eval "$(starship init bash)"
-eval "$(zoxide init bash)"
-eval "$(fzf --bash)" 2>/dev/null || true
-eval "$(atuin init bash)"
-'
+"# --- Modern CLI Stack ---
+eval \"\$(mise activate $init_suffix)\"
+eval \"\$(starship init $init_suffix)\"
+eval \"\$(zoxide init $init_suffix)\"
+eval \"\$(fzf --$init_suffix)\" 2>/dev/null || true
+eval \"\$(atuin init $init_suffix)\"
+"
 
   if [ "$FLAG_NO_SHELL_CONFIG" -eq 1 ]; then
-    # The user wants to manage their .bashrc themselves. We
+    # The user wants to manage their shell config themselves. We
     # generate the additions in memory (already done above) but
-    # skip writing to .bashrc. The block will be printed in the
+    # skip writing to the file. The block will be printed in the
     # summary at the end of main().
     info "Shell init lines: skipped (--no-shell-config set). See suggestions below, if you want to manage the init details yourself."
+    info "(Detected shell: $user_shell. Init commands use '$init_suffix'.)"
     # Also generate the aliases block (in case the user wants
     # to copy them too).
     printf -v aliases '%s' \
@@ -596,7 +624,7 @@ alias cat='"'"'bat'"'"'
 
   if ! grep -q "Modern CLI Stack" "$rc" 2>/dev/null; then
     printf "\n%s\n" "$additions" >> "$rc"
-    ok "Added shell init lines to $rc"
+    ok "Added shell init lines to $rc (shell: $user_shell)"
     SHELL_CONFIG_MODIFIED=1
   else
     info "Shell init lines already present in $rc"
