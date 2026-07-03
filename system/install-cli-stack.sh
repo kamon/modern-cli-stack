@@ -49,11 +49,12 @@ SHELL_CONFIG_MODIFIED=0   # set to 1 if we added to .bashrc or aliases
 find_tool_path() {
   local cmd="$1"
   local tool_name="${cmd%% *}"  # first word, e.g. "mise" from "mise --version"
+  # 1. Try the current shell's PATH first (most common case)
   if command -v "$tool_name" >/dev/null 2>&1; then
     command -v "$tool_name"
     return 0
   fi
-  # On Apple Silicon, try the arm64 subshell. This finds tools
+  # 2. On Apple Silicon, try the arm64 subshell. This finds tools
   # installed by the arm64 brew that the x86 shell can't see.
   if sysctl -n hw.optional.arm64 2>/dev/null | grep -q 1; then
     local arm64_path
@@ -62,6 +63,15 @@ find_tool_path() {
       echo "$arm64_path"
       return 0
     fi
+  fi
+  # 3. Last resort: check the github install dir directly. The
+  # GitHub fallback installs to $HOME/.local/bin which may not
+  # be in the current shell's PATH. If the binary is there, we
+  # know the install succeeded -- the script just can't see it
+  # until the user restarts their shell (or runs `exec bash`).
+  if [ -x "$HOME/.local/bin/$tool_name" ]; then
+    echo "$HOME/.local/bin/$tool_name"
+    return 0
   fi
   return 1
 }
@@ -389,20 +399,27 @@ install_tool() {
   fi
 
   printf "  %s→%s %s ... " "$CYN" "$RST" "$name"
-  # Capture both stdout and stderr so we can show the user why
-  # it failed. The combined output is sometimes large (50+
-  # lines of cargo/rust output), but the hint filter below
-  # strips the noise (Homebrew progress messages, "already
-  # installed" hints, etc.) and keeps just the actual error.
+  # Run the install command, streaming output to the terminal
+  # in real-time (so the user sees the download progress and
+  # status) AND capturing it to a file for hint extraction on
+  # failure. This is the key difference from a plain $(...)
+  # capture: the user gets live feedback ("downloading...",
+  # "extracting...", etc.) and the parent script still has the
+  # output for filtering.
   #
-  # The subshell wrapper is required: without it, the '> /dev/null'
-  # redirection is interpreted by the parent, and the parent
-  # captures stdout (which is then redirected away -- $err is
-  # always empty). With the subshell, the redirections are
-  # scoped to the subshell, and the parent captures the subshell's
-  # combined output.
-  local err
-  err=$( (eval "$cmd") 2>&1) || true
+  # We use a temp file rather than a process substitution so
+  # the capture is robust against weird edge cases (the
+  # install command might use 'exec' which would close the
+  # parent-side file descriptor). PIPESTATUS preserves the
+  # install command's exit code through the pipe, but we
+  # don't actually use it -- the install_path check below
+  # determines success (a tool is installed iff the binary
+  # is in PATH or ~/.local/bin).
+  local err err_file
+  err_file=$(mktemp)
+  (eval "$cmd") 2>&1 | tee "$err_file"
+  err=$(cat "$err_file")
+  rm -f "$err_file"
   if install_path=$(find_tool_path "$check_cmd" 2>/dev/null || true) && [ -n "$install_path" ]; then
     record_install "$name" "installed" "$install_path" "freshly installed"
     TOOLS_FRESHLY_INSTALLED=$((TOOLS_FRESHLY_INSTALLED + 1))
