@@ -1088,6 +1088,13 @@ run_uninstall() {
     case "$answer" in
       [yY]|[yY][eE][sS])
         uninstall_shell_rc
+        # Also look for stale hooks from OFFICIAL tool installers
+        # (e.g. 'curl https://mise.run | sh' adds a line like
+        # 'eval "$(~/.local/bin/mise activate zsh)"' to .zshrc
+        # directly, NOT under our "Modern CLI Stack" marker).
+        # The line is harmless if mise is installed, but if the
+        # binary was removed, the shell errors on every start.
+        uninstall_stale_tool_hooks
         ;;
       *)
         info "Skipped .bashrc cleanup."
@@ -1104,6 +1111,106 @@ run_uninstall() {
     "$DIM" "$RST"
   echo
   ok "Uninstall complete. Removed: $uninstalled | Skipped: $skipped | Failed: $failed"
+}
+
+# --- Uninstall: clean up stale tool-installer hooks ------------------------
+# Looks for hooks left by OFFICIAL tool installers (not by the
+# install script's "Modern CLI Stack" block). These are lines
+# like:
+#   eval "$(~/.local/bin/mise activate zsh)"   <- official mise installer
+#   eval "$(/home/user/.cargo/env)"             <- rustup default
+# If the referenced binary is gone, the shell errors on every
+# start with messages like '_mise_hook:1: no such file or
+# directory'. This function finds such lines and offers to
+# remove them.
+uninstall_stale_tool_hooks() {
+  local rc_files=()
+  for f in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.zprofile"; do
+    [ -f "$f" ] && rc_files+=("$f")
+  done
+  [ "${#rc_files[@]}" -eq 0 ] && return 0
+
+  # Patterns that look like "eval $(.../TOOL activate ...)" or
+  # "source .../TOOL/env". These are common installer patterns.
+  # We extract the binary path inside, check if it exists, and
+  # if not, offer to remove the line.
+  local stale_lines=()
+  for rc in "${rc_files[@]}"; do
+    # Find lines that eval or source a tool's installer output.
+    # The patterns are:
+    #   eval "$(.../<tool>/activate ...)"
+    #   source .../<tool>/env
+    # We use grep to find candidate lines.
+    while IFS= read -r match; do
+      [ -z "$match" ] && continue
+      # Extract the path from the line. This is heuristic --
+      # we look for the first thing inside the $( ... ) or
+      # after 'source' that looks like a path ending in a
+      # known tool name.
+      local line_num="${match%%:*}"
+      local line_content="${match#*:}"
+      # Extract a candidate binary path. Look for /<word>/<word>/
+      # patterns inside the line.
+      local bin_path
+      bin_path=$(echo "$line_content" | grep -oE '/[a-zA-Z0-9_./-]+' | while read -r p; do
+        # If the path exists as a file and is executable, treat
+        # it as a candidate. If the file is missing, it's
+        # stale.
+        if [ -x "$p" ]; then
+          echo "$p"
+          break
+        fi
+      done)
+      # If the eval/source line references a path that exists, it's
+      # fine. If it references a path that doesn't exist, it's stale.
+      # The trick: we found an executable path in the line -- if
+      # the actual file referenced by the eval/source is missing,
+      # we have a stale hook.
+      local has_stale=0
+      # Look for a path-like string in the line. If none exist,
+      # the line is "broken" (unresolved).
+      local possible_path
+      possible_path=$(echo "$line_content" | grep -oE '/[^ "'\'')]+' | head -1)
+      if [ -n "$possible_path" ] && [ ! -e "$possible_path" ]; then
+        has_stale=1
+      fi
+      if [ "$has_stale" -eq 1 ]; then
+        stale_lines+=("$rc:$line_num: $line_content")
+      fi
+    done < <(grep -nE 'eval .*activate|source .*/(env|sh)' "$rc" 2>/dev/null)
+  done
+
+  if [ "${#stale_lines[@]}" -eq 0 ]; then
+    return 0
+  fi
+
+  echo
+  warn "Found stale tool hooks in shell config (left by official installers):"
+  for entry in "${stale_lines[@]}"; do
+    printf "    %s\n" "$entry"
+  done
+  printf "  %s?%s Remove these lines? [y/N] " "$YEL" "$RST"
+  local answer
+  read -r answer
+  case "$answer" in
+    [yY]|[yY][eE][sS])
+      for entry in "${stale_lines[@]}"; do
+        local rc="${entry%%:*}"
+        local rest="${entry#*:}"
+        local line_num="${rest%%:*}"
+        # Remove the specific line. Use sed -i with a delete.
+        if sed -i.tmp "${line_num}d" "$rc" 2>/dev/null; then
+          rm -f "$rc.tmp"
+          ok "Removed stale hook from $rc line $line_num"
+        else
+          warn "Could not remove line $line_num from $rc. Edit manually."
+        fi
+      done
+      ;;
+    *)
+      info "Stale hooks left in place. Edit your shell config to fix."
+      ;;
+  esac
 }
 
 # --- Main -------------------------------------------------------------------
