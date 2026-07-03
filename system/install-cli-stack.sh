@@ -242,12 +242,15 @@ ensure_brew() {
         return 0
       else
         # No x86 brew. The ARM64 brew at /opt/homebrew will refuse
-        # to run from this x86 shell. Tools get installed via the
-        # per-tool arm64 fallback (see install_tool below).
+        # to run from this x86 shell. Tell the user what's
+        # happening, and set a flag so install_tool wraps each
+        # macOS install command in 'arch -arm64' from the start.
         warn "Apple Silicon + Rosetta detected, no x86 brew found."
         warn "Tools will be installed via 'arch -arm64' (you may see"
         warn "extra output). To use them from THIS x86 shell, install"
         warn "the x86 brew manually: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+        ROSETTA_SHELL=1
+        export ROSETTA_SHELL
       fi
     fi
   fi
@@ -261,6 +264,13 @@ ensure_brew() {
     ok "Homebrew installed"
   fi
 }
+
+# Rosetta shell flag. Set to 1 by ensure_brew when we're in an
+# x86_64 shell on Apple Silicon with no x86 brew installed.
+# install_tool uses this to wrap mac_cmd in 'arch -arm64' so
+# each install runs in an arm64 subshell from the start
+# (avoiding the "Cannot install under Rosetta 2" error).
+ROSETTA_SHELL=0
 
 # --- Tool installer ---------------------------------------------------------
 # Each entry: name | install-mac | install-linux | check-command
@@ -297,7 +307,20 @@ install_tool() {
 
   local cmd=""
   case "$OS" in
-    macos) cmd="$mac_cmd" ;;
+    macos)
+      # If we're in a Rosetta shell (x86_64 on Apple Silicon with
+      # no x86 brew installed), the native ARM64 brew at
+      # /opt/homebrew will refuse to run with "Cannot install under
+      # Rosetta 2". Instead of letting each tool fail and retry
+      # via the post-install Rosetta check, we wrap the install
+      # command in 'arch -arm64' from the start. The arm64
+      # subshell can run the ARM64 brew without issues.
+      if [ "${ROSETTA_SHELL:-0}" -eq 1 ]; then
+        cmd="arch -arm64 $mac_cmd"
+      else
+        cmd="$mac_cmd"
+      fi
+      ;;
     linux|wsl)
       if [ -n "$lin_cmd" ]; then
         # The lin field may contain multiple install variants separated
