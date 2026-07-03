@@ -934,6 +934,52 @@ uninstall_tool() {
   esac
 }
 
+# --- Uninstall: remove the .bashrc additions -------------------------------
+# Removes the block the install script added. The block
+# starts with the marker '# --- Modern CLI Stack ---' and
+# runs through the aliases section. We use sed to delete
+# from the marker through the next blank line.
+uninstall_shell_rc() {
+  local rc="$HOME/.bashrc"
+  [ ! -f "$rc" ] && [ -f "$HOME/.bash_profile" ] && rc="$HOME/.bash_profile"
+
+  if [ ! -f "$rc" ]; then
+    info "No .bashrc or .bash_profile found -- nothing to remove."
+    return 0
+  fi
+
+  if ! grep -q "Modern CLI Stack" "$rc" 2>/dev/null; then
+    info "No Modern CLI Stack block found in $rc -- nothing to remove."
+    return 0
+  fi
+
+  # Use sed to delete from the marker line through the next
+  # blank line. This removes the eval lines block and the
+  # trailing blank line that separates it from the aliases.
+  # We also delete the aliases block that follows.
+  local rc_backup="$rc.uninstall-backup.$$"
+  cp "$rc" "$rc_backup" || {
+    warn "Could not back up $rc. Aborting .bashrc cleanup."
+    return 1
+  }
+
+  # Remove the Modern CLI Stack block: from the marker through
+  # the line containing 'alias cat=' (the last line of the
+  # aliases block we added).
+  if sed -i.tmp \
+      -e '/# --- Modern CLI Stack ---/,/alias cat=/d' \
+      "$rc" 2>/dev/null; then
+    rm -f "$rc.tmp"
+    ok "Removed Modern CLI Stack block from $rc (backup at $rc_backup)"
+    return 0
+  else
+    # Restore the backup if sed failed
+    mv "$rc_backup" "$rc"
+    warn "sed failed to edit $rc. File unchanged."
+    return 1
+  fi
+}
+
 # --- Main -------------------------------------------------------------------
 main() {
   # Parse flags. Currently supports:
