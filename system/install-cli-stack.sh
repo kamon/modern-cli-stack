@@ -235,7 +235,7 @@ TOOLS=(
   "bat|brew install bat|apt:bat;github:sharkdp/bat;pacman -S bat|bat --version|https://github.com/sharkdp/bat"
   "eza|brew install eza|cargo install eza;github:eza-community/eza;apt:eza;pacman -S eza|eza --version|https://github.com/eza-community/eza"
   "delta|brew install git-delta|cargo install git-delta;github:dandavison/delta;pacman -S git-delta|delta --version|https://github.com/dandavison/delta"
-  "tldr|brew install tldr|apt:tldr;pacman -S tldr|tldr --version|https://github.com/tldr-pages/tldr"
+  "tldr|brew install tlrc|github:tldr-pages/tlrc|tldr --version|https://github.com/tldr-pages/tlrc"
   "atuin|brew install atuin|cargo install atuin --locked;github:atuinsh/atuin;pacman -S atuin|atuin --version|https://github.com/atuinsh/atuin"
   "lazygit|brew install lazygit|cargo install lazygit;github:jesseduffield/lazygit;apt:lazygit;pacman -S lazygit|lazygit --version|https://github.com/jesseduffield/lazygit"
 )
