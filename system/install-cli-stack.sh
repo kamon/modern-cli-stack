@@ -655,22 +655,42 @@ install_from_github_release() {
   # should be evaluated now ($install_dir, $tool_name, $asset_url)
   # are left unescaped.
   cat <<INSTALL_CMD
-set -e
-tmpdir=\$(mktemp -d)
+# Note: set -e is intentionally NOT used here. We want to capture
+# errors and report them via the parent script's hint filter, not
+# silently exit on the first failure.
+tmpdir=\$(mktemp -d) || { echo "could not create temp dir" >&2; exit 1; }
 cd "\$tmpdir"
-curl -sL --max-time 120 -o asset "$asset_url"
+echo "  downloading from GitHub: $asset_url"
+if ! curl -fLs --max-time 120 -o asset "$asset_url" 2>&1; then
+  echo "  curl failed: download error or non-200 status" >&2
+  exit 1
+fi
+if [ ! -s asset ]; then
+  echo "  downloaded file is empty" >&2
+  exit 1
+fi
 # Detect archive type and extract
-if file "\$tmpdir/asset" | grep -q 'gzip compressed'; then
-  tar -xzf asset
-elif file "\$tmpdir/asset" | grep -q 'Zip archive'; then
-  unzip -q asset
-elif file "\$tmpdir/asset" | grep -q 'XZ compressed'; then
-  tar -xJf asset
+file_type=\$(file asset)
+if echo "\$file_type" | grep -q 'gzip compressed'; then
+  tar -xzf asset 2>&1 || { echo "  tar extraction failed" >&2; exit 1; }
+elif echo "\$file_type" | grep -q 'Zip archive'; then
+  unzip -q asset 2>&1 || { echo "  unzip failed" >&2; exit 1; }
+elif echo "\$file_type" | grep -q 'XZ compressed'; then
+  tar -xJf asset 2>&1 || { echo "  tar (xz) extraction failed" >&2; exit 1; }
+elif echo "\$file_type" | grep -q 'bzip2 compressed'; then
+  tar -xjf asset 2>&1 || { echo "  tar (bz2) extraction failed" >&2; exit 1; }
 else
   # Not a known archive type. If it's an executable, install as-is.
-  chmod +x asset
-  mv asset "$install_dir/$tool_name"
-  echo "installed as flat binary"
+  if [ -x asset ]; then
+    install -m 755 asset "$install_dir/$tool_name" || { echo "  install failed" >&2; exit 1; }
+    echo "  installed as flat binary"
+  else
+    echo "  unrecognized file type: \$file_type" >&2
+    echo "  (not an archive, and not an executable)" >&2
+    exit 1
+  fi
+  cd /
+  rm -rf "\$tmpdir"
   exit 0
 fi
 # Find the binary in the extracted contents. Some tools ship
@@ -695,10 +715,12 @@ if [ -z "\$binary" ]; then
   binary=\$(find . -type f -perm -u+x 2>/dev/null | head -1)
 fi
 if [ -z "\$binary" ]; then
-  echo "no executable found in archive" >&2
+  echo "  no executable named '$tool_name' found in archive" >&2
+  echo "  archive contents:" >&2
+  find . -type f | head -20 | sed 's/^/    /' >&2
   exit 1
 fi
-install -m 755 "\$binary" "$install_dir/$tool_name"
+install -m 755 "\$binary" "$install_dir/$tool_name" || { echo "  install failed" >&2; exit 1; }
 cd /
 rm -rf "\$tmpdir"
 INSTALL_CMD
