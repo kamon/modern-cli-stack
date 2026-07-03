@@ -389,13 +389,20 @@ install_tool() {
   fi
 
   printf "  %s→%s %s ... " "$CYN" "$RST" "$name"
-  # Capture stderr so we can show the user why it failed. The full
-  # stderr for some tools is 50+ lines of cargo/rust output; we
-  # keep it all (in $err) but only print the first non-empty line
-  # + a "more info" pointer on failure. If the user wants the full
-  # output, they can re-run the install manually.
+  # Capture both stdout and stderr so we can show the user why
+  # it failed. The combined output is sometimes large (50+
+  # lines of cargo/rust output), but the hint filter below
+  # strips the noise (Homebrew progress messages, "already
+  # installed" hints, etc.) and keeps just the actual error.
+  #
+  # The subshell wrapper is required: without it, the '> /dev/null'
+  # redirection is interpreted by the parent, and the parent
+  # captures stdout (which is then redirected away -- $err is
+  # always empty). With the subshell, the redirections are
+  # scoped to the subshell, and the parent captures the subshell's
+  # combined output.
   local err
-  err=$(eval "$cmd" 2>&1 >/dev/null) || true
+  err=$( (eval "$cmd") 2>&1) || true
   if install_path=$(find_tool_path "$check_cmd" 2>/dev/null || true) && [ -n "$install_path" ]; then
     record_install "$name" "installed" "$install_path" "freshly installed"
     TOOLS_FRESHLY_INSTALLED=$((TOOLS_FRESHLY_INSTALLED + 1))
