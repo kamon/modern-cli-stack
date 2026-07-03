@@ -25,7 +25,9 @@ The first three sections (Mental Models, The Install Script, The 13
 Tools) are the core. Read them in order. The remaining sections
 (roadmap, appendices) are reference — come back when you need them.
 
-Uninstall instructions are in Appendix D. Nothing here is irreversible.
+Uninstall instructions are in Appendix D (or run
+`./install-cli-stack.sh --uninstall` for an interactive
+removal). Nothing here is irreversible.
 
 ## What next
 

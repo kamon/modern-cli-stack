@@ -22,6 +22,11 @@ bash install-cli-stack.sh
 - On Apple Silicon running under Rosetta 2, each install retries via
   `arch -arm64` so the ARM64 Homebrew can install tools to
   `/opt/homebrew` even when the script itself is running as x86_64.
+- On Linux without a working package manager (e.g. a fresh server
+  with no apt/cargo/dnf/pacman), the script prompts per tool to
+  download a pre-built binary from the tool's GitHub release. The
+  binary is installed to `~/.local/bin/<tool>`. This fallback
+  requires network access and a writable home directory.
 
 ## What it does NOT do
 
@@ -40,6 +45,11 @@ bash install-cli-stack.sh --help
   you can copy them into your own shell config. Useful if you manage
   your shell via a dotfiles repo, or use a non-bash default shell
   (zsh, fish) and need to adapt the additions.
+- `--uninstall` (or `-U`): interactive uninstall. The script scans
+  the 13 tools, prompts for each (y/N), detects how the tool was
+  installed (brew / apt / dnf / pacman / cargo / GitHub fallback),
+  and removes it. At the end it asks to also remove the `~/.bashrc`
+  additions. Run with this flag on the same OS you installed on.
 - `-h`, `--help`: show all available flags.
 
 ## OS-specific notes
@@ -49,7 +59,8 @@ Apple Silicon, the script detects Rosetta 2 and uses an `arch -arm64`
 fallback for tool installs.
 
 **Linux (Debian/Ubuntu)** — Uses `apt`. Some tools need `cargo install`
-fallback if not in repos.
+fallback if not in repos. If neither works, the script prompts to
+download a pre-built binary from the tool's GitHub release.
 
 **Linux (Fedora/RHEL)** — Uses `dnf` + cargo fallback.
 
@@ -60,6 +71,14 @@ fallback if not in repos.
 
 ## How to uninstall
 
-See Appendix D — one command per package manager removes every tool,
-leaves configs in place. After uninstall, you can also remove the
-`# --- Modern CLI Stack ---` block from your `~/.bashrc`.
+The recommended way is the script's `--uninstall` flag, which prompts
+for each tool and the `.bashrc` cleanup:
+
+```bash
+bash install-cli-stack.sh --uninstall
+```
+
+For a fully manual uninstall (no script), see Appendix D — one
+command per package manager removes every tool, leaves configs in
+place. After uninstall, you can also remove the `# --- Modern CLI
+Stack ---` block from your `~/.bashrc`.

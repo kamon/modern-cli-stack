@@ -49,7 +49,12 @@ Key terms used throughout this PDF.
   add the init lines to `~/.bashrc` because you asked it not to.
   Either re-run without the flag, or copy the printed additions
   block into your shell config (`.bashrc`, `.zshrc`, etc.).
-- **bat/eza showing as `batcat`/`fdfind`?** Debian aliases. Add to `~/.bashrc`:
+- **bat/eza showing as `batcat`/`fdfind`?** Debian names the binaries
+  differently. The script now auto-creates a `~/.local/bin/fd` symlink
+  pointing to `fdfind` (and `~/.local/bin/bat` to `batcat`) so the
+  primary names work. You may need to add `~/.local/bin` to your PATH
+  in your current shell: `export PATH="$HOME/.local/bin:$PATH"`. If the
+  symlink wasn't created (older script version), add to `~/.bashrc`:
   ```bash
   alias bat='batcat'
   alias fd='fdfind'
@@ -61,10 +66,41 @@ Key terms used throughout this PDF.
   script retries via `arch -arm64` automatically. If that also fails,
   install the x86 Homebrew manually and re-run:
   `arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`.
+- **On Linux, the script asks "Download from <github>?
+  [Y/n]" for some tools.** This is the GitHub release fallback
+  for systems without a working package manager (no apt, no cargo,
+  etc.). The binary is installed to `~/.local/bin/<tool>`. You can:
+  accept (Y) to download and install from the tool's GitHub release,
+  or decline (n) to skip. If you decline all of them, the tools
+  that don't have an apt/pacman/dnf package will show
+  "no install command for this OS" — install them manually from
+  the URLs shown.
+- **Tools installed from GitHub aren't found in the current
+  shell.** The script installs to `~/.local/bin`, which may not
+  be in your current shell's PATH. Either restart the shell
+  (`exec bash`) or `export PATH="$HOME/.local/bin:$PATH"` for the
+  current session.
 
 # Appendix D: Uninstall
 
-Three steps: remove the tools, remove the shell init block, and
+The recommended way to uninstall is the script's `--uninstall`
+flag. It prompts before removing each tool and the `.bashrc`
+additions, and detects how each tool was installed
+(brew / apt / dnf / pacman / cargo / GitHub fallback) so it
+runs the right uninstall command:
+
+```bash
+bash install-cli-stack.sh --uninstall
+```
+
+The flag is interactive -- it skips any tool you decline.
+The non-interactive behavior (e.g. `curl | bash -s -- --uninstall`)
+just lists what's installed without removing anything.
+
+## Manual uninstall (no script)
+
+If you can't or don't want to use the script, three steps:
+remove the tools, remove the shell init block, and
 (optionally) clean up per-tool config directories.
 
 ## Step 1: Remove the tools
@@ -73,14 +109,14 @@ Three steps: remove the tools, remove the shell init block, and
 
 ```bash
 brew uninstall mise broot starship zoxide fzf ripgrep fd bat
-brew uninstall eza git-delta tldr atuin lazygit
+brew uninstall eza git-delta tlrc atuin lazygit
 ```
 
 ### Debian / Ubuntu
 
 ```bash
 sudo apt remove mise broot zoxide fzf ripgrep fd-find bat
-sudo apt remove eza git-delta tldr atuin lazygit
+sudo apt remove eza git-delta tlrc atuin lazygit
 ```
 
 (Some tools — `broot`, `starship`, `delta` — may not be in the
@@ -92,40 +128,47 @@ that line — they were probably installed via the script's
 
 ```bash
 sudo dnf remove mise broot zoxide fzf ripgrep fd-find bat
-sudo dnf remove eza git-delta tldr atuin lazygit
+sudo dnf remove eza git-delta tlrc atuin lazygit
 ```
 
 ### Arch / Manjaro
 
 ```bash
 sudo pacman -Rns mise broot zoxide fzf ripgrep fd bat
-sudo pacman -Rns eza git-delta tldr atuin lazygit
+sudo pacman -Rns eza git-delta tlrc atuin lazygit
 ```
 
 (`starship`, `delta`, `broot` may not be in the default Arch
 repos. If `pacman` can't find them, skip that line — they were
 probably installed via the script's `cargo install` fallback.)
 
+### Linux (GitHub fallback)
+
+Tools installed via the script's GitHub release fallback live
+in `~/.local/bin`. Remove them directly:
+
+```bash
+rm -f ~/.local/bin/mise ~/.local/bin/broot ~/.local/bin/starship
+rm -f ~/.local/bin/zoxide ~/.local/bin/fzf ~/.local/bin/rg
+rm -f ~/.local/bin/fd ~/.local/bin/bat ~/.local/bin/eza
+rm -f ~/.local/bin/delta ~/.local/bin/tlrc ~/.local/bin/atuin
+rm -f ~/.local/bin/lazygit
+rm -f ~/.local/bin/fd ~/.local/bin/bat  # alias symlinks
+```
+
+The tool's `--version` command can confirm which tools are
+there before you delete:
+
+```bash
+for f in ~/.local/bin/*; do [ -x "$f" ] && echo "$f"; done
+```
+
 ## Step 2: Remove the shell init block
 
 The install script appended a `# --- Modern CLI Stack ---` block
-to your `~/.bashrc`. To remove it:
-
-```bash
-# Show what's there
-grep -A 6 "Modern CLI Stack" ~/.bashrc
-
-# Remove the block (and the aliases section after it). The exact
-# range depends on how many lines the script added; this example
-# removes the init block + 7 lines of aliases = ~16 lines.
-# Or use your editor and delete the block manually.
-ed ~/.bashrc <<'EOF'
-/# --- Modern CLI Stack ---/
-.,/# CLI stack aliases/#
-/# CLI stack aliases/+1,/# --- Modern CLI Stack ---/-1d
-wq
-EOF
-```
+to your `~/.bashrc`. To remove it manually, open the file in your
+editor and delete everything from that marker line through the
+last alias (the line containing `alias cat='...'`).
 
 If you used the `--no-shell-config` flag when installing, there's
 nothing to remove from `~/.bashrc` (the script never wrote to it).
