@@ -829,16 +829,43 @@ uninstall_tool() {
   # Detect install path by looking at where the binary lives.
   case "$tool_path" in
     */homebrew/*|*/Cellar/*|/usr/local/bin/*)
-      # brew (macOS or Linuxbrew)
-      local brew_pkg
-      brew_pkg=$(echo "$mac_cmd" | awk '{print $3}')
-      if [ -n "$brew_pkg" ] && command -v brew >/dev/null 2>&1; then
-        if brew uninstall "$brew_pkg" 2>/dev/null; then
-          ok "Uninstalled $name (brew: $brew_pkg)"
-          return 0
+      # brew (macOS or Linuxbrew). The data has a package name
+      # (e.g. "brew install tlrc" -- the maintainer-preferred name
+      # for the formula), but older or alternative formulae may
+      # have a different name (e.g. "tldr" before the rename to
+      # "tlrc"). The binary on disk has its own name (e.g. "tldr"
+      # for the tlrc formula). Try the data's name first, then the
+      # binary name, so both old and new installs are removed.
+      if command -v brew >/dev/null 2>&1; then
+        # The data's brew package name (third word of mac_cmd)
+        local data_pkg
+        data_pkg=$(echo "$mac_cmd" | awk '{print $3}')
+        # The binary name (first word of the check command). For
+        # tldr/tlrc the binary is named "tldr" even though the
+        # brew formula is "tlrc".
+        local bin_pkg="$tool_name"
+        # Try the data's package name first, then the binary name.
+        local tried_any=0
+        for pkg in "$data_pkg" "$bin_pkg"; do
+          [ -z "$pkg" ] && continue
+          # Only try if the formula is actually installed (avoids
+          # the noisy "Error: No available formula" message)
+          if brew list "$pkg" >/dev/null 2>&1; then
+            tried_any=1
+            if brew uninstall "$pkg" 2>/dev/null; then
+              ok "Uninstalled $name (brew: $pkg)"
+              return 0
+            fi
+          fi
+        done
+        if [ "$tried_any" -eq 0 ]; then
+          warn "$name is at a brew path but no matching brew formula found. Try: brew list | grep $name"
+          return 1
         fi
+        warn "Could not uninstall $name via brew. Tried '$data_pkg' and '$bin_pkg'. Remove manually."
+        return 1
       fi
-      warn "Could not uninstall $name via brew. Try manually: brew uninstall $brew_pkg"
+      warn "brew not found but $name is in a brew path. Remove manually: $tool_path"
       return 1
       ;;
 
@@ -939,44 +966,64 @@ uninstall_tool() {
 # starts with the marker '# --- Modern CLI Stack ---' and
 # runs through the aliases section. We use sed to delete
 # from the marker through the next blank line.
+#
+# Checks both bash-style and zsh-style config files. On macOS
+# the user's default shell is often zsh, and the install
+# script's eval lines can land in ~/.zshrc instead of
+# ~/.bashrc. We try the user's actual default shell first
+# ($SHELL), then fall back to common config file locations.
 uninstall_shell_rc() {
-  local rc="$HOME/.bashrc"
-  [ ! -f "$rc" ] && [ -f "$HOME/.bash_profile" ] && rc="$HOME/.bash_profile"
+  # Build the list of candidate rc files. Order: user's $SHELL
+  # (if set and the file exists), then common fallbacks.
+  local rc_files=()
+  if [ -n "$SHELL" ] && [ -f "$HOME/.${SHELL##*/}rc" ]; then
+    rc_files+=("$HOME/.${SHELL##*/}rc")
+  fi
+  # Common config files for bash and zsh
+  for f in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
+    # Avoid duplicates
+    local already=0
+    for existing in "${rc_files[@]}"; do
+      [ "$existing" = "$f" ] && already=1
+    done
+    [ "$already" -eq 0 ] && [ -f "$f" ] && rc_files+=("$f")
+  done
 
-  if [ ! -f "$rc" ]; then
-    info "No .bashrc or .bash_profile found -- nothing to remove."
+  if [ "${#rc_files[@]}" -eq 0 ]; then
+    info "No shell config files found -- nothing to remove."
     return 0
   fi
 
-  if ! grep -q "Modern CLI Stack" "$rc" 2>/dev/null; then
-    info "No Modern CLI Stack block found in $rc -- nothing to remove."
-    return 0
-  fi
+  local removed_any=0
+  for rc in "${rc_files[@]}"; do
+    if ! grep -q "Modern CLI Stack" "$rc" 2>/dev/null; then
+      info "No Modern CLI Stack block in $rc -- skipping."
+      continue
+    fi
+    # Backup before sed in case of failure
+    local rc_backup="$rc.uninstall-backup.$$"
+    cp "$rc" "$rc_backup" || {
+      warn "Could not back up $rc. Skipping."
+      continue
+    }
+    # Remove the Modern CLI Stack block: from the marker through
+    # the line containing 'alias cat=' (the last line of the
+    # aliases block we added).
+    if sed -i.tmp \
+        -e '/# --- Modern CLI Stack ---/,/alias cat=/d' \
+        "$rc" 2>/dev/null; then
+      rm -f "$rc.tmp"
+      ok "Removed Modern CLI Stack block from $rc (backup at $rc_backup)"
+      removed_any=1
+    else
+      # Restore the backup if sed failed
+      mv "$rc_backup" "$rc" 2>/dev/null
+      warn "sed failed to edit $rc. File unchanged."
+    fi
+  done
 
-  # Use sed to delete from the marker line through the next
-  # blank line. This removes the eval lines block and the
-  # trailing blank line that separates it from the aliases.
-  # We also delete the aliases block that follows.
-  local rc_backup="$rc.uninstall-backup.$$"
-  cp "$rc" "$rc_backup" || {
-    warn "Could not back up $rc. Aborting .bashrc cleanup."
-    return 1
-  }
-
-  # Remove the Modern CLI Stack block: from the marker through
-  # the line containing 'alias cat=' (the last line of the
-  # aliases block we added).
-  if sed -i.tmp \
-      -e '/# --- Modern CLI Stack ---/,/alias cat=/d' \
-      "$rc" 2>/dev/null; then
-    rm -f "$rc.tmp"
-    ok "Removed Modern CLI Stack block from $rc (backup at $rc_backup)"
-    return 0
-  else
-    # Restore the backup if sed failed
-    mv "$rc_backup" "$rc"
-    warn "sed failed to edit $rc. File unchanged."
-    return 1
+  if [ "$removed_any" -eq 0 ]; then
+    info "No Modern CLI Stack block found in any shell config file."
   fi
 }
 
