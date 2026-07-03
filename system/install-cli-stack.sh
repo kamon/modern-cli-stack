@@ -257,6 +257,12 @@ install_tool() {
         #   (b) for package-manager variants, the package actually
         #       exists in the repo.
         #
+        # The "github:" variant is NOT tried in this loop. It's a
+        # fallback that requires user opt-in (per-tool prompt) since
+        # it makes a network call to GitHub and downloads a binary
+        # the user didn't ask for. See the github_fallback block
+        # below.
+        #
         # This avoids common failures:
         #   - "cargo: command not found" when cargo isn't installed
         #   - "brew: command not found" on Linux (brew isn't there)
@@ -267,8 +273,7 @@ install_tool() {
         # "sudo apt install -y foo". A bare command (no prefix) like
         # "cargo install foo" falls through to the * case and is used
         # as-is, after checking that the command (e.g. "cargo") is
-        # actually available. A "github:owner/repo" variant downloads
-        # the latest release binary from GitHub and installs to ~/.local/bin.
+        # actually available.
         local variants
         IFS=';' read -ra variants <<< "$lin_cmd"
         local variant
@@ -299,18 +304,8 @@ install_tool() {
               fi
               ;;
             github:*)
-              # Defer to install_from_github_release (defined below)
-              # which returns the install command (download + extract
-              # + cp to ~/.local/bin). We check the prerequisites
-              # (curl, ~/.local/bin writable) inline.
-              if command -v curl >/dev/null 2>&1 && \
-                 [ -d "$HOME/.local/bin" ] || mkdir -p "$HOME/.local/bin" 2>/dev/null; then
-                repo="${variant#github:}"
-                cmd=$(install_from_github_release "$name" "$repo" 2>/dev/null) || cmd=""
-                if [ -n "$cmd" ]; then
-                  break
-                fi
-              fi
+              # Skip -- handled in the github_fallback block after
+              # the main loop. The user gets a per-tool prompt.
               ;;
             *)
               # Bare command (e.g. "cargo install foo"). Check the
@@ -326,6 +321,65 @@ install_tool() {
       fi
       ;;
   esac
+
+  # GitHub release fallback. This runs AFTER the main variant loop
+  # if no other variant matched. It requires user opt-in (per-tool
+  # prompt) since it makes a network call to GitHub and downloads
+  # a binary the user didn't explicitly ask for.
+  #
+  # The flow:
+  #   1. Scan lin_cmd for any github: variants
+  #   2. If none, fall through to "no install command"
+  #   3. If at least one github: variant, check curl is available
+  #   4. If running interactively, prompt the user
+  #   5. If user accepts, call install_from_github_release
+  if [ -z "$cmd" ] && [ -n "$lin_cmd" ] && [ "$OS" != "macos" ]; then
+    local github_repo=""
+    local fallback_variants
+    IFS=';' read -ra fallback_variants <<< "$lin_cmd"
+    for fv in "${fallback_variants[@]}"; do
+      case "$fv" in
+        github:*) github_repo="${fv#github:}"; break ;;
+      esac
+    done
+    if [ -n "$github_repo" ] && command -v curl >/dev/null 2>&1; then
+      # Make sure ~/.local/bin exists (and is writable) so the
+      # user can see the install path before confirming.
+      mkdir -p "$HOME/.local/bin" 2>/dev/null || {
+        warn "Could not create $HOME/.local/bin -- skipping GitHub fallback for $name"
+        return 1
+      }
+
+      # Decide whether to prompt. Prompt only if stdin is a TTY
+      # (i.e. the user is running interactively). For
+      # non-interactive runs (curl|bash, automation), skip
+      # github: and report "no install command".
+      local proceed=0
+      if [ -t 0 ]; then
+        printf "  %s?%s %s isn't available via package manager. Download from\n" \
+          "$YEL" "$RST" "$name"
+        printf "      https://github.com/%s/releases\n" "$github_repo"
+        printf "  Install? [Y/n] "
+        local answer
+        read -r answer
+        case "$answer" in
+          [nN]|[nN][oO]) proceed=0 ;;
+          *)            proceed=1 ;;
+        esac
+      else
+        # Non-interactive (curl|bash, etc.). Skip without
+        # prompting. Users can re-run with --interactive if they
+        # want the github fallback.
+        proceed=0
+      fi
+
+      if [ "$proceed" -eq 1 ]; then
+        printf "  %s↻%s %s (downloading from GitHub) ... " \
+          "$CYN" "$RST" "$name"
+        cmd=$(install_from_github_release "$name" "$github_repo" 2>/dev/null) || cmd=""
+      fi
+    fi
+  fi
 
   if [ -z "$cmd" ]; then
     printf "  %s⚠%s %s (no install command for this OS — see %s)\n" \
