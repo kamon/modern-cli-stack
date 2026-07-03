@@ -49,9 +49,49 @@ SHELL_CONFIG_MODIFIED=0   # set to 1 if we added to .bashrc or aliases
 find_tool_path() {
   local cmd="$1"
   local tool_name="${cmd%% *}"  # first word, e.g. "mise" from "mise --version"
+
+  # Known binary aliases. Some Linux distros install the tool
+  # under a different name than the tool name. For example, on
+  # Debian/Ubuntu, the 'fd' apt package is called 'fd-find' and
+  # installs a binary called 'fdfind' (not 'fd'). Same for
+  # 'bat' (binary is 'batcat'). The script's "is this tool
+  # installed" check needs to recognize these aliases.
+  #
+  # When we find an alias binary but not the primary name, we
+  # create a symlink at ~/.local/bin/<primary> -> <alias> so the
+  # primary command works. The symlink is what most docs and
+  # shell configs reference.
+  local alias=""
+  case "$tool_name" in
+    fd)   alias="fdfind" ;;
+    bat)  alias="batcat" ;;
+  esac
+
   # 1. Try the current shell's PATH first (most common case)
   if command -v "$tool_name" >/dev/null 2>&1; then
     command -v "$tool_name"
+    return 0
+  fi
+  # 1b. If the primary name isn't found but a known alias is,
+  # create a symlink in ~/.local/bin so the primary name works
+  # for future invocations. This handles the case where the
+  # user installed fd-find via apt and the binary is at
+  # /usr/bin/fdfind -- we symlink ~/.local/bin/fd -> fdfind.
+  if [ -n "$alias" ] && command -v "$alias" >/dev/null 2>&1; then
+    mkdir -p "$HOME/.local/bin" 2>/dev/null
+    if [ ! -e "$HOME/.local/bin/$tool_name" ]; then
+      ln -s "$(command -v "$alias")" "$HOME/.local/bin/$tool_name" 2>/dev/null
+      if [ $? -eq 0 ]; then
+        echo "$HOME/.local/bin/$tool_name"
+        return 0
+      fi
+    elif [ -x "$HOME/.local/bin/$tool_name" ]; then
+      # Symlink already exists from a previous run
+      echo "$HOME/.local/bin/$tool_name"
+      return 0
+    fi
+    # Couldn't symlink, but the alias binary is available
+    command -v "$alias"
     return 0
   fi
   # 2. On Apple Silicon, try the arm64 subshell. This finds tools
@@ -639,18 +679,28 @@ install_from_github_release() {
         }
         if (url ~ /i[36]86/ || url ~ /i686/) score += 1
         if (url ~ /armv7/) score += 1
-        # Prefer the tool name as a path component (NOT a substring).
-        # The substring check would match e.g. "atuin-server" when
-        # we are looking for "atuin". Use a word-boundary check: the
-        # tool name should be either the basename (before any
-        # version/arch suffix) or appear as a separate token.
-        if (url ~ ("^[^/]*/" tool "[-_]") || url ~ ("/" tool "[-_]") || url ~ ("/" tool "\\.")) score += 8
+        # Prefer the tool name as a path component followed by a
+        # version/arch segment. The pattern: tool name + (-/v/_/.digit)
+        # where the next char is a digit (version like v1.0.0 or 1.0.0)
+        # or the tool name is the final segment before the extension.
+        # This avoids false matches like 'atuin-server' for 'atuin':
+        # the regex requires the tool name to be followed by either
+        # '-v' + digit (versioned), '-' + digit (e.g. eza-0.23.4), or
+        # '_v' + digit (uncommon but possible).
+        if (url ~ ("^[^/]*/" tool "[-_]v[0-9]") || \
+            url ~ ("/" tool "[-_]v[0-9]") || \
+            url ~ ("^[^/]*/" tool "[-_][0-9]") || \
+            url ~ ("/" tool "[-_][0-9]") || \
+            url ~ ("/" tool "\\.[a-z]")) score += 8
         # Archive format preferences: .tar.gz > .tar.xz > .zip
         if (url ~ /\.tar\.gz$/ || url ~ /\.tgz$/) score += 5
         else if (url ~ /\.tar\.xz$/ || url ~ /\.txz$/) score += 4
         else if (url ~ /\.zip$/) score += 3
         # Penalty for musl (prefer glibc when both are available)
         if (url ~ /musl/) score -= 4
+        # Penalty for "-server" suffix (e.g. atuin-server vs
+        # atuin). The user wants the CLI binary, not the server.
+        if (url ~ (tool "-server")) score -= 10
         # Bonus for "no_libgit" variants on Linux (eza-specific
         # naming; these are the standalone binaries)
         if (url ~ /no_libgit/) score += 2
