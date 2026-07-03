@@ -215,19 +215,19 @@ ensure_brew() {
 # --- Tool installer ---------------------------------------------------------
 # Each entry: name | install-mac | install-linux | check-command
 TOOLS=(
-  "mise|brew install mise|cargo install mise --locked;apt:mise;pacman -S mise|mise --version|https://mise.jdx.dev"
-  "broot|brew install broot|cargo install broot --locked;pacman -S broot|broot --version|https://github.com/Canop/broot"
-  "starship|brew install starship|cargo install starship --locked;pacman -S starship|starship --version|https://starship.rs"
-  "zoxide|brew install zoxide|apt:zoxide;cargo install zoxide --locked;pacman -S zoxide|zoxide --version|https://github.com/ajeetdsouza/zoxide"
-  "fzf|brew install fzf|apt:fzf;cargo install fzf;pacman -S fzf|fzf --version|https://github.com/junegunn/fzf"
-  "ripgrep|brew install ripgrep|apt:ripgrep;cargo install ripgrep;pacman -S ripgrep|rg --version|https://github.com/BurntSushi/ripgrep"
-  "fd|brew install fd|apt:fd-find;cargo install fd-find --locked;pacman -S fd|fd --version|https://github.com/sharkdp/fd"
-  "bat|brew install bat|apt:bat;cargo install bat --locked;pacman -S bat|bat --version|https://github.com/sharkdp/bat"
-  "eza|brew install eza|cargo install eza;apt:eza;pacman -S eza|eza --version|https://github.com/eza-community/eza"
-  "delta|brew install git-delta|cargo install git-delta;pacman -S git-delta|delta --version|https://github.com/dandavison/delta"
-  "tldr|brew install tldr|cargo install tldr;apt:tldr;pacman -S tldr|tldr --version|https://github.com/tldr-pages/tldr"
-  "atuin|brew install atuin|cargo install atuin --locked;pacman -S atuin|atuin --version|https://github.com/atuinsh/atuin"
-  "lazygit|brew install lazygit|cargo install lazygit;apt:lazygit;pacman -S lazygit|lazygit --version|https://github.com/jesseduffield/lazygit"
+  "mise|brew install mise|cargo install mise --locked;github:jdx/mise;apt:mise;pacman -S mise|mise --version|https://mise.jdx.dev"
+  "broot|brew install broot|cargo install broot --locked;github:Canop/broot;pacman -S broot|broot --version|https://github.com/Canop/broot"
+  "starship|brew install starship|cargo install starship --locked;github:starship/starship;pacman -S starship|starship --version|https://starship.rs"
+  "zoxide|brew install zoxide|apt:zoxide;cargo install zoxide --locked;github:ajeetdsouza/zoxide;pacman -S zoxide|zoxide --version|https://github.com/ajeetdsouza/zoxide"
+  "fzf|brew install fzf|apt:fzf;github:junegunn/fzf;pacman -S fzf|fzf --version|https://github.com/junegunn/fzf"
+  "ripgrep|brew install ripgrep|apt:ripgrep;github:BurntSushi/ripgrep;pacman -S ripgrep|rg --version|https://github.com/BurntSushi/ripgrep"
+  "fd|brew install fd|apt:fd-find;github:sharkdp/fd;pacman -S fd|fd --version|https://github.com/sharkdp/fd"
+  "bat|brew install bat|apt:bat;github:sharkdp/bat;pacman -S bat|bat --version|https://github.com/sharkdp/bat"
+  "eza|brew install eza|cargo install eza;github:eza-community/eza;apt:eza;pacman -S eza|eza --version|https://github.com/eza-community/eza"
+  "delta|brew install git-delta|cargo install git-delta;github:dandavison/delta;pacman -S git-delta|delta --version|https://github.com/dandavison/delta"
+  "tldr|brew install tldr|github:tldr-pages/tldr;apt:tldr;pacman -S tldr|tldr --version|https://github.com/tldr-pages/tldr"
+  "atuin|brew install atuin|cargo install atuin --locked;github:atuinsh/atuin;pacman -S atuin|atuin --version|https://github.com/atuinsh/atuin"
+  "lazygit|brew install lazygit|cargo install lazygit;github:jesseduffield/lazygit;apt:lazygit;pacman -S lazygit|lazygit --version|https://github.com/jesseduffield/lazygit"
 )
 
 install_tool() {
@@ -251,8 +251,8 @@ install_tool() {
     linux|wsl)
       if [ -n "$lin_cmd" ]; then
         # The lin field may contain multiple install variants separated
-        # by ';' (e.g. "cargo install foo;pacman -S foo"). We try each
-        # in order, using the first one that:
+        # by ';' (e.g. "cargo install foo;github:owner/repo;pacman -S foo").
+        # We try each in order, using the first one that:
         #   (a) has its underlying command available, AND
         #   (b) for package-manager variants, the package actually
         #       exists in the repo.
@@ -267,7 +267,8 @@ install_tool() {
         # "sudo apt install -y foo". A bare command (no prefix) like
         # "cargo install foo" falls through to the * case and is used
         # as-is, after checking that the command (e.g. "cargo") is
-        # actually available.
+        # actually available. A "github:owner/repo" variant downloads
+        # the latest release binary from GitHub and installs to ~/.local/bin.
         local variants
         IFS=';' read -ra variants <<< "$lin_cmd"
         local variant
@@ -275,8 +276,6 @@ install_tool() {
           case "$variant" in
             apt:*)
               pkg="${variant#apt:}"
-              # Check the package exists in the apt cache before
-              # trying to install. apt-cache show returns 0 if found.
               if command -v apt-cache >/dev/null 2>&1 && \
                  apt-cache show "$pkg" >/dev/null 2>&1; then
                 cmd="sudo apt install -y $pkg"
@@ -293,12 +292,24 @@ install_tool() {
               ;;
             pacman:*)
               pkg="${variant#pacman:}"
-              # Only try pacman if pacman is installed AND the
-              # package is in the configured repos.
               if command -v pacman >/dev/null 2>&1 && \
                  pacman -Si "$pkg" >/dev/null 2>&1; then
                 cmd="sudo pacman -S --noconfirm $pkg"
                 break
+              fi
+              ;;
+            github:*)
+              # Defer to install_from_github_release (defined below)
+              # which returns the install command (download + extract
+              # + cp to ~/.local/bin). We check the prerequisites
+              # (curl, ~/.local/bin writable) inline.
+              if command -v curl >/dev/null 2>&1 && \
+                 [ -d "$HOME/.local/bin" ] || mkdir -p "$HOME/.local/bin" 2>/dev/null; then
+                repo="${variant#github:}"
+                cmd=$(install_from_github_release "$name" "$repo" 2>/dev/null) || cmd=""
+                if [ -n "$cmd" ]; then
+                  break
+                fi
               fi
               ;;
             *)
@@ -460,6 +471,177 @@ alias cat='"'"'bat'"'"'
     ok "Added aliases to $rc"
     SHELL_CONFIG_MODIFIED=1
   fi
+}
+
+# --- GitHub release installer ----------------------------------------------
+# Download a pre-built binary from a GitHub release and install to
+# ~/.local/bin. This is the fallback for systems that don't have a
+# working package manager (no apt, no cargo, no dnf, no pacman).
+#
+# Args:
+#   $1: tool name (e.g. "mise") -- used for the binary name
+#   $2: repo (e.g. "jdx/mise") -- the GitHub owner/repo
+#
+# Outputs the command to be run by install_tool (so the existing
+# error-capture / retry logic applies). The command is a heredoc
+# that does the full install: curl API -> parse asset URL -> download
+# -> extract -> install.
+#
+# Returns 0 if a usable asset was found, 1 otherwise.
+install_from_github_release() {
+  local tool_name="$1"
+  local repo="$2"
+  local install_dir="${HOME}/.local/bin"
+
+  # Make sure ~/.local/bin exists. The check in install_tool
+  # should have already done this, but belt-and-suspenders.
+  mkdir -p "$install_dir" 2>/dev/null || {
+    echo "# could not create $install_dir" >&2
+    return 1
+  }
+
+  # Fetch the latest release JSON. The API is unauthenticated but
+  # rate-limited (60 req/hour per IP). The script makes 13 calls
+  # (one per tool) which is well under the limit.
+  local api_url="https://api.github.com/repos/${repo}/releases/latest"
+  local release_json
+  release_json=$(curl -sL --max-time 30 "$api_url" 2>/dev/null) || {
+    echo "# curl failed: $api_url" >&2
+    return 1
+  }
+
+  # Detect architecture for asset selection
+  local arch
+  case "$(uname -m)" in
+    x86_64)  arch="x86_64" ;;
+    aarch64|arm64) arch="aarch64" ;;
+    *)       arch="$(uname -m)" ;;
+  esac
+
+  # Find the right asset. Each repo names its assets differently,
+  # so we use heuristics:
+  #   - prefer "linux" + arch (x86_64 / amd64 / aarch64 / arm64)
+  #   - prefer .tar.gz, .tgz, or .zip
+  #   - avoid .deb / .rpm / .msi / .dmg / .pkg (we install manually)
+  #   - avoid "musl" if a non-musl is available (glibc is more common)
+  #   - avoid "debug" or "sha" / "sig" / "asc" files
+  #
+  # We use grep to extract browser_download_url entries, then awk
+  # to score each by the heuristics above. This is fragile by
+  # design -- if a release names its assets unusually, the user
+  # gets a clear error and can install manually.
+  local asset_url
+  asset_url=$(printf '%s\n' "$release_json" | \
+    grep -oE '"browser_download_url":\s*"[^"]+"' | \
+    sed -E 's/^"browser_download_url":[ \t]*"//;s/"$//' | \
+    awk -v arch="$arch" -v tool="$tool_name" '
+      BEGIN { IGNORECASE = 1 }
+      # Skip obviously wrong assets
+      /\.deb$/ || /\.rpm$/ || /\.msi$/ || /\.dmg$/ || /\.pkg$/ || \
+      /\.sig$/ || /\.asc$/ || /\.sha/ || /\.sha256/ || /\.sha512/ || \
+      /\/install\.sh/ || /\/install\.ps1/ || /debug/ { next }
+      {
+        score = 0
+        url = $0
+        # Linux/Unix detection: prefer explicit linux, but also
+        # accept anything with an arch suffix (x86_64, x64, amd64,
+        # aarch64, arm64) and no .dmg/.msi (already filtered above).
+        if (url ~ /linux/) score += 6
+        if (url ~ /darwin/ || url ~ /macos/ || url ~ /osx/ || url ~ /apple/) score -= 4
+        if (url ~ /windows/ || url ~ /win32/ || url ~ /_win/ || url ~ /\.exe/) score -= 4
+        # Architecture matching -- be generous with naming variants
+        if (url ~ "x86_64" || url ~ /x86-64/ || url ~ "x64" || url ~ "amd64") {
+          if (arch == "x86_64") score += 12
+        }
+        if (url ~ "aarch64" || url ~ "arm64") {
+          if (arch == "aarch64") score += 12
+        }
+        if (url ~ /i[36]86/ || url ~ /i686/) score += 1
+        if (url ~ /armv7/) score += 1
+        # Prefer the tool name as a path component (NOT a substring).
+        # The substring check would match e.g. "atuin-server" when
+        # we are looking for "atuin". Use a word-boundary check: the
+        # tool name should be either the basename (before any
+        # version/arch suffix) or appear as a separate token.
+        if (url ~ ("^[^/]*/" tool "[-_]") || url ~ ("/" tool "[-_]") || url ~ ("/" tool "\\.")) score += 8
+        # Archive format preferences: .tar.gz > .tar.xz > .zip
+        if (url ~ /\.tar\.gz$/ || url ~ /\.tgz$/) score += 5
+        else if (url ~ /\.tar\.xz$/ || url ~ /\.txz$/) score += 4
+        else if (url ~ /\.zip$/) score += 3
+        # Penalty for musl (prefer glibc when both are available)
+        if (url ~ /musl/) score -= 4
+        # Bonus for "no_libgit" variants on Linux (eza-specific
+        # naming; these are the standalone binaries)
+        if (url ~ /no_libgit/) score += 2
+        if (score > best) { best = score; best_url = url }
+      }
+      END { if (best_url) print best_url }
+    ')
+
+  if [ -z "$asset_url" ]; then
+    echo "# no suitable linux asset found for $repo (arch=$arch)" >&2
+    return 1
+  fi
+
+  # Emit the install command. The script's existing error-capture
+  # (2>&1 >/dev/null) will swallow the verbose output and put any
+  # errors in $err for the hint display.
+  #
+  # IMPORTANT: the heredoc is unquoted, so $... and $(...) are
+  # expanded NOW (when cat reads the heredoc). Variables that should
+  # be evaluated at install time (tmpdir, binary, mktemp) are
+  # escaped with \$ to defer their expansion. Variables that
+  # should be evaluated now ($install_dir, $tool_name, $asset_url)
+  # are left unescaped.
+  cat <<INSTALL_CMD
+set -e
+tmpdir=\$(mktemp -d)
+cd "\$tmpdir"
+curl -sL --max-time 120 -o asset "$asset_url"
+# Detect archive type and extract
+if file "\$tmpdir/asset" | grep -q 'gzip compressed'; then
+  tar -xzf asset
+elif file "\$tmpdir/asset" | grep -q 'Zip archive'; then
+  unzip -q asset
+elif file "\$tmpdir/asset" | grep -q 'XZ compressed'; then
+  tar -xJf asset
+else
+  # Not a known archive type. If it's an executable, install as-is.
+  chmod +x asset
+  mv asset "$install_dir/$tool_name"
+  echo "installed as flat binary"
+  exit 0
+fi
+# Find the binary in the extracted contents. Some tools ship
+# multiple platform binaries in one archive (e.g. broot has
+# aarch64/, x86_64/, etc. subdirs). Prefer the one matching the
+# current arch, then fall back to any executable matching the
+# tool name, then to any executable.
+arch_dir=\$(uname -m)
+case "\$arch_dir" in
+  x86_64)  arch_dir="x86_64" ;;
+  aarch64|arm64) arch_dir="aarch64" ;;
+  *)       arch_dir="" ;;
+esac
+binary=""
+if [ -n "\$arch_dir" ]; then
+  binary=\$(find . -type f -perm -u+x -name "$tool_name" -path "*/\$arch_dir/*" 2>/dev/null | head -1)
+fi
+if [ -z "\$binary" ]; then
+  binary=\$(find . -type f -perm -u+x -name "$tool_name" 2>/dev/null | head -1)
+fi
+if [ -z "\$binary" ]; then
+  binary=\$(find . -type f -perm -u+x 2>/dev/null | head -1)
+fi
+if [ -z "\$binary" ]; then
+  echo "no executable found in archive" >&2
+  exit 1
+fi
+install -m 755 "\$binary" "$install_dir/$tool_name"
+cd /
+rm -rf "\$tmpdir"
+INSTALL_CMD
+  return 0
 }
 
 # --- Main -------------------------------------------------------------------
