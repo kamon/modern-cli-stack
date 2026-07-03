@@ -801,6 +801,139 @@ INSTALL_CMD
   return 0
 }
 
+# --- Uninstall: remove a single tool ----------------------------------------
+# Detects how a tool was installed (brew, apt, dnf, pacman,
+# cargo, or the GitHub fallback at ~/.local/bin) and runs the
+# appropriate uninstall command. Returns 0 on success, 1 on
+# failure.
+#
+# Args:
+#   $1: tool name (e.g. "mise")
+#   $2: mac install command (e.g. "brew install mise") -- used
+#       to extract the brew package name
+#   $3: linux install variants (e.g. "apt:mise;cargo install mise")
+#   $4: check command (e.g. "mise --version")
+#   $5: github repo (for the GitHub fallback case)
+#   $6: path to the installed binary (from find_tool_path)
+uninstall_tool() {
+  local name="$1"
+  local mac_cmd="$2"
+  local lin_cmd="$3"
+  local check_cmd="$4"
+  local github_repo="$5"
+  local tool_path="$6"
+  local tool_name="${check_cmd%% *}"
+
+  printf "  %s↻%s Removing %s ...\n" "$CYN" "$RST" "$name"
+
+  # Detect install path by looking at where the binary lives.
+  case "$tool_path" in
+    */homebrew/*|*/Cellar/*|/usr/local/bin/*)
+      # brew (macOS or Linuxbrew)
+      local brew_pkg
+      brew_pkg=$(echo "$mac_cmd" | awk '{print $3}')
+      if [ -n "$brew_pkg" ] && command -v brew >/dev/null 2>&1; then
+        if brew uninstall "$brew_pkg" 2>/dev/null; then
+          ok "Uninstalled $name (brew: $brew_pkg)"
+          return 0
+        fi
+      fi
+      warn "Could not uninstall $name via brew. Try manually: brew uninstall $brew_pkg"
+      return 1
+      ;;
+
+    */.cargo/bin/*|*/cargo/bin/*)
+      # cargo install -- no built-in uninstall, just remove the file
+      if [ -f "$tool_path" ]; then
+        rm -f "$tool_path"
+        ok "Removed $name (cargo binary at $tool_path)"
+        return 0
+      fi
+      warn "Could not find $name at $tool_path"
+      return 1
+      ;;
+
+    */.local/bin/*)
+      # GitHub fallback install
+      if [ -f "$tool_path" ]; then
+        rm -f "$tool_path"
+        ok "Removed $name (GitHub fallback at $tool_path)"
+      fi
+      # Also remove the alias symlink if present (fd -> fdfind, bat -> batcat)
+      case "$tool_name" in
+        fd)  rm -f "$HOME/.local/bin/fd"  ;;
+        bat) rm -f "$HOME/.local/bin/bat" ;;
+      esac
+      return 0
+      ;;
+
+    /usr/bin/*|/bin/*|/usr/sbin/*|/usr/local/sbin/*)
+      # System package manager. Try apt, dnf, pacman in order.
+      # The package name may differ from the tool name (e.g.
+      # apt:fd-find installs the binary fdfind).
+
+      if command -v apt-get >/dev/null 2>&1; then
+        local apt_pkg
+        apt_pkg=$(echo "$lin_cmd" | tr ';' ' ' | awk '{for(i=1;i<=NF;i++) if($i ~ /^apt:/) {print substr($i,5)}}' | head -1)
+        if [ -n "$apt_pkg" ] && dpkg -l "$apt_pkg" >/dev/null 2>&1; then
+          if sudo apt remove -y "$apt_pkg" 2>/dev/null; then
+            ok "Uninstalled $name (apt: $apt_pkg)"
+            return 0
+          fi
+        fi
+      fi
+
+      if command -v dnf >/dev/null 2>&1; then
+        local dnf_pkg
+        dnf_pkg=$(echo "$lin_cmd" | tr ';' ' ' | awk '{for(i=1;i<=NF;i++) if($i ~ /^dnf:/) {print substr($i,5)}}' | head -1)
+        if [ -n "$dnf_pkg" ] && rpm -q "$dnf_pkg" >/dev/null 2>&1; then
+          if sudo dnf remove -y "$dnf_pkg" 2>/dev/null; then
+            ok "Uninstalled $name (dnf: $dnf_pkg)"
+            return 0
+          fi
+        fi
+      fi
+
+      if command -v pacman >/dev/null 2>&1; then
+        local pacman_pkg
+        pacman_pkg=$(echo "$lin_cmd" | tr ';' ' ' | awk '{for(i=1;i<=NF;i++) if($i ~ /^pacman:/) {print substr($i,8)}}' | head -1)
+        if [ -n "$pacman_pkg" ] && pacman -Q "$pacman_pkg" >/dev/null 2>&1; then
+          if sudo pacman -Rns --noconfirm "$pacman_pkg" 2>/dev/null; then
+            ok "Uninstalled $name (pacman: $pacman_pkg)"
+            return 0
+          fi
+        fi
+      fi
+
+      # Last resort: use dpkg -S to find which package owns the
+      # binary, then remove that package
+      if command -v dpkg >/dev/null 2>&1; then
+        local owner
+        owner=$(dpkg -S "$tool_path" 2>/dev/null | awk '{print $1}' | sed 's/:$//' | head -1)
+        if [ -n "$owner" ] && [ "$owner" != "dpkg" ]; then
+          if sudo apt remove -y "$owner" 2>/dev/null; then
+            ok "Uninstalled $name (apt: $owner -- found via dpkg -S)"
+            return 0
+          fi
+        fi
+      fi
+      warn "Could not determine install method for $name. Try: sudo apt remove <pkg> or rm $tool_path"
+      return 1
+      ;;
+
+    *)
+      # Unknown install path. Just try to remove the file.
+      if [ -f "$tool_path" ]; then
+        rm -f "$tool_path"
+        ok "Removed $name (file at $tool_path)"
+        return 0
+      fi
+      warn "Unknown install location for $name: $tool_path"
+      return 1
+      ;;
+  esac
+}
+
 # --- Main -------------------------------------------------------------------
 main() {
   # Parse flags. Currently supports:
