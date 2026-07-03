@@ -1130,54 +1130,51 @@ uninstall_stale_tool_hooks() {
   done
   [ "${#rc_files[@]}" -eq 0 ] && return 0
 
-  # Patterns that look like "eval $(.../TOOL activate ...)" or
-  # "source .../TOOL/env". These are common installer patterns.
-  # We extract the binary path inside, check if it exists, and
-  # if not, offer to remove the line.
+  # Find any line that uses `eval ...` or `source ...` to
+  # load a tool installer output. For each match, extract the
+  # referenced path and check whether it exists. If it doesn't,
+  # the hook is stale (the tool was uninstalled but the line
+  # wasn't removed).
+  #
+  # We catch a broader set of patterns than before:
+  #   - eval "..." with any path inside (mise, pyenv, etc.)
+  #   - source <path>/<file> with any filename (broot's "br",
+  #     rustup's "env", etc.)
+  # The "is the path real?" check is what filters out false
+  # positives -- a line that points to a real file is left alone.
   local stale_lines=()
   for rc in "${rc_files[@]}"; do
-    # Find lines that eval or source a tool's installer output.
-    # The patterns are:
-    #   eval "$(.../<tool>/activate ...)"
-    #   source .../<tool>/env
-    # We use grep to find candidate lines.
     while IFS= read -r match; do
       [ -z "$match" ] && continue
-      # Extract the path from the line. This is heuristic --
-      # we look for the first thing inside the $( ... ) or
-      # after 'source' that looks like a path ending in a
-      # known tool name.
       local line_num="${match%%:*}"
       local line_content="${match#*:}"
-      # Extract a candidate binary path. Look for /<word>/<word>/
-      # patterns inside the line.
-      local bin_path
-      bin_path=$(echo "$line_content" | grep -oE '/[a-zA-Z0-9_./-]+' | while read -r p; do
-        # If the path exists as a file and is executable, treat
-        # it as a candidate. If the file is missing, it's
-        # stale.
-        if [ -x "$p" ]; then
-          echo "$p"
-          break
-        fi
-      done)
-      # If the eval/source line references a path that exists, it's
-      # fine. If it references a path that doesn't exist, it's stale.
-      # The trick: we found an executable path in the line -- if
-      # the actual file referenced by the eval/source is missing,
-      # we have a stale hook.
-      local has_stale=0
-      # Look for a path-like string in the line. If none exist,
-      # the line is "broken" (unresolved).
-      local possible_path
-      possible_path=$(echo "$line_content" | grep -oE '/[^ "'\'')]+' | head -1)
-      if [ -n "$possible_path" ] && [ ! -e "$possible_path" ]; then
-        has_stale=1
-      fi
-      if [ "$has_stale" -eq 1 ]; then
+
+      # Try to extract a path-like string from the line. The path
+      # might be:
+      #   - inside $(...) for eval lines:    eval "$(.../path...)"
+      #   - the argument of source:         source /path/to/file
+      #   - inside "..." for source:        source "/path/to/file"
+      # We grab the first /path/to/something we find, then check
+      # if it exists. If the line is a simple 'source <existing-file>'
+      # we leave it alone.
+      local candidate
+      candidate=$(echo "$line_content" | grep -oE '/[a-zA-Z0-9_./-]+' | head -1)
+      [ -z "$candidate" ] && continue
+
+      # If the path exists (as a file or directory), the hook
+      # is fine. Skip it.
+      # Use a small allowlist for paths we never want to flag,
+      # even if missing. These are common shell builtins or
+      # system paths that might not be in $PATH at the time the
+      # shell parses the file.
+      case "$candidate" in
+        /usr/bin/*|/bin/*|/usr/sbin/*|/sbin/*) continue ;;
+      esac
+
+      if [ ! -e "$candidate" ]; then
         stale_lines+=("$rc:$line_num: $line_content")
       fi
-    done < <(grep -nE 'eval .*activate|source .*/(env|sh)' "$rc" 2>/dev/null)
+    done < <(grep -nE 'eval .*\(|source ' "$rc" 2>/dev/null)
   done
 
   if [ "${#stale_lines[@]}" -eq 0 ]; then
