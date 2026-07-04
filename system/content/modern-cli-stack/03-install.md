@@ -17,8 +17,10 @@ bash install-cli-stack.sh
 - Skips tools that are already installed. Safe to re-run.
 - Appends the tool init lines (`eval "$(mise activate bash)"`,
   `eval "$(zoxide init bash)"`, etc.) and a few aliases
-  (`ls='eza --icons'`, `cat='bat'`) to your `~/.bashrc`. Re-runs detect
-  existing blocks and skip them.
+  (`ls='eza --icons'`, `cat='bat'`) to your shell config file. The
+  script picks the right one based on your `$SHELL`: `~/.bashrc` for
+  bash, `~/.zshrc` for zsh (which is macOS's default shell). Re-runs
+  detect existing blocks and skip them.
 - On Apple Silicon running under Rosetta 2, each install retries via
   `arch -arm64` so the ARM64 Homebrew can install tools to
   `/opt/homebrew` even when the script itself is running as x86_64.
@@ -31,7 +33,8 @@ bash install-cli-stack.sh
 ## What it does NOT do
 
 - Does not change your default shell
-- Does not touch files outside `~/.bashrc`, `~/.config/`, and standard
+- Does not touch files outside your shell config (`~/.bashrc` or
+  `~/.zshrc`, depending on shell), `~/.config/`, and standard
   package paths
 
 ## Flags
@@ -40,16 +43,17 @@ bash install-cli-stack.sh
 bash install-cli-stack.sh --help
 ```
 
-- `--no-shell-config` (or `-S`): don't modify `~/.bashrc`. Instead,
-  the script prints the additions block (init lines + aliases) so
-  you can copy them into your own shell config. Useful if you manage
-  your shell via a dotfiles repo, or use a non-bash default shell
-  (zsh, fish) and need to adapt the additions.
+- `--no-shell-config` (or `-S`): don't modify your shell config.
+  Instead, the script prints the additions block (init lines +
+  aliases) so you can copy them into your own shell config. Useful
+  if you manage your shell via a dotfiles repo, or use a non-bash
+  default shell (zsh, fish) and need to adapt the additions.
 - `--uninstall` (or `-U`): interactive uninstall. The script scans
   the 13 tools, prompts for each (y/N), detects how the tool was
   installed (brew / apt / dnf / pacman / cargo / GitHub fallback),
-  and removes it. At the end it asks to also remove the `~/.bashrc`
-  additions. Run with this flag on the same OS you installed on.
+  and removes it. At the end it asks to also remove the shell
+  config additions (`~/.bashrc` or `~/.zshrc`, depending on shell).
+  Run with this flag on the same OS you installed on.
 - `-h`, `--help`: show all available flags.
 
 ## OS-specific notes
@@ -72,7 +76,7 @@ download a pre-built binary from the tool's GitHub release.
 ## After the install: opening a new shell
 
 The shell config block the script adds (the `# --- Modern CLI Stack ---`
-block in your `~/.bashrc`, `~/.zprofile`, or `~/.zshrc`) only takes
+block in your `~/.bashrc` for bash, or `~/.zshrc` for zsh) only takes
 effect on a new shell session. The session the script ran in is
 unchanged.
 
@@ -110,7 +114,7 @@ small aliases block. Together they:
 
 ### First check: do the tools work?
 
-Open a new shell and run these 6 commands. Each one should print
+Open a new shell and run these commands. Each one should print
 a version number, not an error.
 
 ```bash
@@ -119,8 +123,7 @@ starship --version
 zoxide --version
 fzf --version
 atuin --version
-# Plus the tools that came with the stack:
-ls --version | head -1    # shows eza
+ls --version | head -1    # shows eza (via the ls alias)
 bat --version
 rg --version
 fd --version
@@ -163,7 +166,7 @@ That's fzf + atuin, working together.
 ## How to uninstall
 
 The recommended way is the script's `--uninstall` flag, which prompts
-for each tool and the `.bashrc` cleanup:
+for each tool and the shell config cleanup:
 
 ```bash
 bash install-cli-stack.sh --uninstall

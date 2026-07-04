@@ -1264,15 +1264,15 @@ uninstall_stale_tool_hooks() {
 # --- Main -------------------------------------------------------------------
 main() {
   # Parse flags. Currently supports:
-  #   --no-shell-config (or -S): don't modify .bashrc. Instead,
-  #     print the additions block at the end of the run so the user
-  #     can copy it manually. Useful for users who want to review
-  #     the changes before they land, or who manage their shell
-  #     config via a dotfiles repo.
+  #   --no-shell-config (or -S): don't modify your shell config.
+  #     Instead, print the additions block at the end of the run so
+  #     the user can copy it manually. Useful for users who want to
+  #     review the changes before they land, or who manage their
+  #     shell config via a dotfiles repo.
   #   --uninstall (or -U): interactive uninstall. Prompts for each
-  #     tool before removing it. Also removes the .bashrc additions
-  #     (with its own prompt). This is the reverse of the default
-  #     install flow.
+  #     tool before removing it. Also removes the shell config
+  #     additions (with its own prompt). This is the reverse of the
+  #     default install flow.
   FLAG_NO_SHELL_CONFIG=0
   FLAG_UNINSTALL=0
   while [ $# -gt 0 ]; do
@@ -1284,17 +1284,19 @@ main() {
 Usage: install-cli-stack.sh [flags]
 
 Flags:
-  --no-shell-config, -S  Don't modify .bashrc. Print the additions
-                          block at the end of the run for manual
-                          application.
+  --no-shell-config, -S  Don't modify your shell config. Print the
+                          additions block at the end of the run for
+                          manual application.
   --uninstall, -U         Interactive uninstall. Prompts for each
-                          tool before removing it. Also removes
-                          the .bashrc additions. Run with this
+                          tool before removing it. Also removes the
+                          shell config additions. Run with this
                           flag on the same OS you installed on.
   -h, --help              Show this help.
 
 Default behavior: installs the 13 tools, then appends the eval
-lines and aliases to ~/.bashrc so the tools work in new shells.
+lines and aliases to your shell config (\$HOME/.bashrc for bash,
+\$HOME/.zshrc for zsh) so the tools work in new shells. The shell
+is detected from the \$SHELL environment variable.
 EOF
         exit 0 ;;
       *) warn "Unknown flag: $1 (ignored)"; shift ;;

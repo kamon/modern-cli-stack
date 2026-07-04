@@ -42,11 +42,13 @@ Key terms used throughout this PDF.
 
 # Appendix C: Troubleshooting
 
-- **Tool not found after install?** Restart your shell: `exec bash`
-- **Starship prompt empty?** Check `~/.bashrc` has the `eval` line.
+- **Tool not found after install?** Open a new shell, or run
+  `exec $SHELL` to reload the config.
+- **Starship prompt empty?** Check that your shell config
+  (`~/.bashrc` for bash, `~/.zshrc` for zsh) has the `eval` line.
 - **zoxide doesn't work?** Same — restart shell.
 - **Used `--no-shell-config` and tools don't work?** The script didn't
-  add the init lines to `~/.bashrc` because you asked it not to.
+  add the init lines to your shell config because you asked it not to.
   Either re-run without the flag, or copy the printed additions
   block into your shell config (`.bashrc`, `.zshrc`, etc.).
 - **bat/eza showing as `batcat`/`fdfind`?** Debian names the binaries
@@ -54,7 +56,8 @@ Key terms used throughout this PDF.
   pointing to `fdfind` (and `~/.local/bin/bat` to `batcat`) so the
   primary names work. You may need to add `~/.local/bin` to your PATH
   in your current shell: `export PATH="$HOME/.local/bin:$PATH"`. If the
-  symlink wasn't created (older script version), add to `~/.bashrc`:
+  symlink wasn't created (older script version), add to your shell
+  config:
   ```bash
   alias bat='batcat'
   alias fd='fdfind'
@@ -78,16 +81,16 @@ Key terms used throughout this PDF.
 - **Tools installed from GitHub aren't found in the current
   shell.** The script installs to `~/.local/bin`, which may not
   be in your current shell's PATH. Either restart the shell
-  (`exec bash`) or `export PATH="$HOME/.local/bin:$PATH"` for the
-  current session.
+  (`exec $SHELL`) or `export PATH="$HOME/.local/bin:$PATH"` for
+  the current session.
 
 # Appendix D: Uninstall
 
 The recommended way to uninstall is the script's `--uninstall`
-flag. It prompts before removing each tool and the `.bashrc`
-additions, and detects how each tool was installed
-(brew / apt / dnf / pacman / cargo / GitHub fallback) so it
-runs the right uninstall command:
+flag. It prompts before removing each tool and the shell config
+additions (`~/.bashrc` for bash, `~/.zshrc` for zsh), and detects
+how each tool was installed (brew / apt / dnf / pacman / cargo /
+GitHub fallback) so it runs the right uninstall command:
 
 ```bash
 bash install-cli-stack.sh --uninstall
@@ -166,13 +169,14 @@ for f in ~/.local/bin/*; do [ -x "$f" ] && echo "$f"; done
 ## Step 2: Remove the shell init block
 
 The install script appended a `# --- Modern CLI Stack ---` block
-to your `~/.bashrc`. To remove it manually, open the file in your
-editor and delete everything from that marker line through the
-last alias (the line containing `alias cat='...'`).
+to your shell config — `~/.bashrc` for bash, or `~/.zshrc` for
+zsh. To remove it manually, open the right file in your editor
+and delete everything from that marker line through the last
+alias (the line containing `alias cat='...'`).
 
 If you used the `--no-shell-config` flag when installing, there's
-nothing to remove from `~/.bashrc` (the script never wrote to it).
-The init block and aliases are wherever you put them.
+nothing to remove from your shell config (the script never wrote
+to it). The init block and aliases are wherever you put them.
 
 ## Step 3 (optional): Remove per-tool config
 
@@ -188,7 +192,7 @@ rm -rf ~/.config/broot      # tree navigator history
 ```
 
 The install script is idempotent: running it again on a fresh
-system reproduces the setup. If you've removed the `.bashrc`
+system reproduces the setup. If you've removed the shell config
 block and want to re-install, just run `bash install-cli-stack.sh`
 again — it will detect the missing state and re-add everything.
 
