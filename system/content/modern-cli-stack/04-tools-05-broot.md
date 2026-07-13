@@ -54,4 +54,4 @@ Inside broot:
 - `?` for full help
 
 **Try this:** `broot` in a project directory. Type partial file names.
-Press `Ctrl+→` to multi-select. Run `:copy_to /tmp` on the selection.
+Press `Ctrl-G` to stage a file. Run `:copy_to /tmp` on the selection.
