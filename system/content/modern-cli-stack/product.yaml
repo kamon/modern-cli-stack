@@ -8,8 +8,8 @@ product:
   id: "modern-cli-stack"
   slug: "modern-cli-stack"          # used in filenames, URLs
   type: "pdf"                        # pdf | book | newsletter | course
-  version: "2026.2"
-  status: "review"                   # draft | review | published
+  version: "2026.3"
+  status: "draft"                    # draft | review | published
   title: "The Modern CLI Stack"
   subtitle: "13 Tools That Replaced My 200-Line .bashrc"
   tagline: "A Beginner's Field Guide to a Faster Terminal"

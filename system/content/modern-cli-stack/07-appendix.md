@@ -75,7 +75,7 @@ Key terms used throughout this PDF.
   etc.). The binary is installed to `~/.local/bin/<tool>`. You can:
   accept (Y) to download and install from the tool's GitHub release,
   or decline (n) to skip. If you decline all of them, the tools
-  that don't have an apt/pacman/dnf package will show
+  that don't have an apt package will show
   "no install command for this OS" — install them manually from
   the URLs shown.
 - **Tools installed from GitHub aren't found in the current
@@ -89,8 +89,8 @@ Key terms used throughout this PDF.
 The recommended way to uninstall is the script's `--uninstall`
 flag. It prompts before removing each tool and the shell config
 additions (`~/.bashrc` for bash, `~/.zshrc` for zsh), and detects
-how each tool was installed (brew / apt / dnf / pacman / cargo /
-GitHub fallback) so it runs the right uninstall command:
+how each tool was installed (brew / apt / cargo / GitHub fallback)
+so it runs the right uninstall command:
 
 ```bash
 bash install-cli-stack.sh --uninstall
@@ -127,23 +127,16 @@ default Debian repos. If `apt remove` can't find them, skip
 that line — they were probably installed via the script's
 `cargo install` fallback or downloaded manually.)
 
-### Fedora / RHEL
+### Other Linux distributions (Fedora, Arch, etc.)
 
-```bash
-sudo dnf remove mise broot zoxide fzf ripgrep fd-find bat
-sudo dnf remove eza git-delta tlrc atuin lazygit
-```
-
-### Arch / Manjaro
-
-```bash
-sudo pacman -Rns mise broot zoxide fzf ripgrep fd bat
-sudo pacman -Rns eza git-delta tlrc atuin lazygit
-```
-
-(`starship`, `delta`, `broot` may not be in the default Arch
-repos. If `pacman` can't find them, skip that line — they were
-probably installed via the script's `cargo install` fallback.)
+Not covered by this PDF. The Fedora, Arch, and other
+non-Debian/Ubuntu install paths have not been tested by the
+author. If you installed the 13 tools manually, remove them
+the same way you installed them. If you used the install
+script and it didn't recognize your package manager, the
+script prints a no-install error per tool — re-run it on a
+supported OS (macOS, Debian/Ubuntu), or install the tools
+manually.
 
 ### Linux (GitHub fallback)
 
@@ -200,6 +193,5 @@ again — it will detect the missing state and re-add everything.
 
 - Repo: {{ vars.repo_url }}
 - Newsletter: {{ links.newsletter }}
-- Twitter: {{ links.twitter }}
-- Buy me a coffee: {{ links.coffee }}
+- Twitter: [{{ author.handle }}]({{ social.twitter }})
 - Store: {{ links.store }}

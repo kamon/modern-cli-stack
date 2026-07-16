@@ -12,9 +12,9 @@ bash install-cli-stack.sh
 
 ## What it does
 
-- Installs the 13 tools below via your system package manager (brew
-  on macOS, apt/dnf/pacman on Linux).
-- Skips tools that are already installed. Safe to re-run.
+- Installs the 13 tools below via Homebrew on macOS, or `apt` on
+  Debian/Ubuntu Linux. Skips tools that are already installed.
+  Safe to re-run.
 - Appends the tool init lines (`eval "$(mise activate bash)"`,
   `eval "$(zoxide init bash)"`, etc.) and a few aliases
   (`ls='eza --icons'`, `cat='bat'`) to your shell config file. The
@@ -24,18 +24,16 @@ bash install-cli-stack.sh
 - On Apple Silicon running under Rosetta 2, each install retries via
   `arch -arm64` so the ARM64 Homebrew can install tools to
   `/opt/homebrew` even when the script itself is running as x86_64.
-- On Linux without a working package manager (e.g. a fresh server
-  with no apt/cargo/dnf/pacman), the script prompts per tool to
-  download a pre-built binary from the tool's GitHub release. The
-  binary is installed to `~/.local/bin/<tool>`. This fallback
-  requires network access and a writable home directory.
+- On Debian/Ubuntu, when a tool isn't in the repos, the script
+  prompts to download a pre-built binary from the tool's GitHub
+  release (installed to `~/.local/bin/<tool>`). Requires network
+  access and a writable home directory.
 
 ## What it does NOT do
 
 - Does not change your default shell
-- Does not touch files outside your shell config (`~/.bashrc` or
-  `~/.zshrc`, depending on shell), `~/.config/`, and standard
-  package paths
+- Does not touch files outside your shell config (`~/.bashrc` for
+  bash, `~/.zshrc` for zsh) and standard package paths
 
 ## Flags
 
@@ -50,10 +48,10 @@ bash install-cli-stack.sh --help
   default shell (zsh, fish) and need to adapt the additions.
 - `--uninstall` (or `-U`): interactive uninstall. The script scans
   the 13 tools, prompts for each (y/N), detects how the tool was
-  installed (brew / apt / dnf / pacman / cargo / GitHub fallback),
-  and removes it. At the end it asks to also remove the shell
-  config additions (`~/.bashrc` or `~/.zshrc`, depending on shell).
-  Run with this flag on the same OS you installed on.
+  installed (brew / apt / cargo / GitHub fallback), and removes it.
+  At the end it asks to also remove the shell config additions
+  (`~/.bashrc` or `~/.zshrc`, depending on shell). Run with this
+  flag on the same OS you installed on.
 - `-h`, `--help`: show all available flags.
 
 ## OS-specific notes
@@ -66,12 +64,13 @@ fallback for tool installs.
 fallback if not in repos. If neither works, the script prompts to
 download a pre-built binary from the tool's GitHub release.
 
-**Linux (Fedora/RHEL)** — Uses `dnf` + cargo fallback.
+**Other Linux distributions** — Not covered by this PDF.
+The Fedora, Arch, and other non-Debian/Ubuntu install paths have
+not been tested by the author. For other distributions, install
+the 13 tools manually using your distro's package manager.
 
-**Linux (Arch)** — Uses `pacman` (most tools already in repos).
-
-**WSL (Windows)** — Treat as Linux. Install WSLg for GUI tools.
-**Do not run on native PowerShell.**
+**WSL (Windows)** — Treat as Linux. The install script detects WSL
+via `/proc/version` and runs the same Linux branches as native.
 
 ## After the install: opening a new shell
 
