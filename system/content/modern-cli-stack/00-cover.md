@@ -25,6 +25,6 @@ titlepage-rule-height: 2
 
 **License:** {{ author.defaults.license }}
 
-[Companion newsletter]({{ links.newsletter }}) · [{{ links.community }}]({{ links.community }})
+[Companion newsletter]({{ links.newsletter }})
 
 \newpage
